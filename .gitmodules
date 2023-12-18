@@ -1,0 +1,4 @@
+[submodule "external/ton"]
+	path = external/ton
+	url = https://github.com/ton-blockchain/ton
+	branch = testnet
