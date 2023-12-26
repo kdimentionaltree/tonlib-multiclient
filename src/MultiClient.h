@@ -12,8 +12,13 @@ public:
     MultiClient(MultiClient&& other);
     MultiClient& operator=(MultiClient&& other);
 
-    struct RequestOptions {
+    struct RequestRequirements {
+        enum Mode {
+            Single = 0,
+            Broadcast = 1
+        } mode;
         std::int32_t ls_index = -1;
+        std::int32_t n_clients = 1;
         std::int32_t archival = -1;
     };
 
@@ -23,7 +28,7 @@ public:
         tonlib_api::object_ptr<tonlib_api::Function> function;
     };
 
-    struct ResponseMeta {
+    struct RequestRequirements {
         std::int32_t ls_index;
     };
 

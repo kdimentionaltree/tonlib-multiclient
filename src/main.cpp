@@ -38,13 +38,22 @@ int main(int argc, char* argv[]) {
     td::actor::ActorOwn<TonlibMultiClient> my_actor_;
     td::actor::Scheduler scheduler_({1});
 
+    class Cb : public tonlib::TonlibCallback {
+    public:
+        explicit Cb() {}
+        void on_result(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) override {
+            LOG(INFO) << "Got result for request #" << id;
+        }
+        void on_error(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) override {
+            LOG(INFO) << "Got error for request #" << id;
+        }
+        ~Cb() override {
+            LOG(INFO) << "Callback destructor";
+        }
+    };
     scheduler_.run_in_context([&] {
-        my_actor_ = td::actor::create_actor<TonlibMultiClient>("TonlibMultiClient", global_config_str, keystore_dir);
+        my_actor_ = td::actor::create_actor<TonlibMultiClient>("TonlibMultiClient", global_config_str, keystore_dir, td::make_unique<Cb>());
     });
-
     scheduler_.run();
-    // while(scheduler_.run(1)) {
-
-    // }
     return 0;
 }

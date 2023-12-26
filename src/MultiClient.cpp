@@ -1,12 +1,11 @@
 #include "MultiClient.h"
+#include "TonlibMultiClient.h"
 
-#include "tonlib/TonlibClient.h"
 #include "tonlib/TonlibCallback.h"
 
 #include "td/utils/logging.h"
 #include "td/utils/check.h"
 #include "td/actor/actor.h"
-
 
 
 class MultiClient::Impl {
@@ -45,7 +44,6 @@ public:
         LOG(INFO) << "MultiClient::Impl was destroyed";
     }
 private:
-    std::map<std::int32_t, td::actor::ActorOwn<tonlib::TonlibClient>> tonlibs_;
     td::actor::Scheduler scheduler_{{1}};
     td::thread scheduler_thread_;
 };
