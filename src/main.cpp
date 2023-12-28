@@ -38,14 +38,14 @@ int main(int argc, char* argv[]) {
     td::actor::ActorOwn<TonlibMultiClient> my_actor_;
     td::actor::Scheduler scheduler_({1});
 
-    class Cb : public tonlib::TonlibCallback {
+    class Cb : public TonlibMultiClientCallback {
     public:
         explicit Cb() {}
-        void on_result(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) override {
-            LOG(INFO) << "Got result for request #" << id;
+        void on_result(std::uint64_t id, Response response) override {
+            LOG(INFO) << "Callback for request #" << response.id << " with " << response.results.size() << " responses";
         }
-        void on_error(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) override {
-            LOG(INFO) << "Got error for request #" << id;
+        void on_error(std::uint64_t id, std::string error) override {
+            LOG(ERROR) << "Callback for request #" << id << " with error: " << error;
         }
         ~Cb() override {
             LOG(INFO) << "Callback destructor";

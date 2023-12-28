@@ -2,10 +2,14 @@
 
 #include "TonlibMultiClient.h"
 
+#include "auto/tl/ton_api_json.h"
+#include "auto/tl/tonlib_api_json.h"
 #include "tl/tl_json.h"
 
+#include "td/actor/MultiPromise.h"
+#include "td/utils/common.h"
+#include "td/utils/format.h"
 #include "td/utils/logging.h"
-#include "auto/tl/ton_api_json.h"
 #include "td/utils/port/path.h"
 #include "td/utils/Status.h"
 #include "td/utils/JsonBuilder.h"
@@ -13,7 +17,7 @@
 
 using namespace ton::tonlib_api;
 
-TonlibMultiClient::TonlibMultiClient(std::string global_config_str, std::string keystore_dir, td::unique_ptr<tonlib::TonlibCallback> callback) : 
+TonlibMultiClient::TonlibMultiClient(std::string global_config_str, std::string keystore_dir, td::unique_ptr<TonlibMultiClientCallback> callback) : 
     global_config_str_(global_config_str), 
     keystore_dir_(keystore_dir), 
     callback_(std::move(callback)),
@@ -66,9 +70,11 @@ void TonlibMultiClient::test_method() {
     auto request = tonlib_api::make_object<tonlib_api::blocks_getMasterchainInfo>();
     RequestOptions options;
     options.mode = RequestOptions::Mode::Broadcast;
+    // options.mode = RequestOptions::Mode::Single;
     options.ls_index = -1;
     options.archival = -1;
-    td::actor::send_closure(actor_id(this), &TonlibMultiClient::request, 100500, std::move(request), options);
+    std::uint64_t id = td::Timestamp::now().at_unix();
+    td::actor::send_closure(actor_id(this), &TonlibMultiClient::request, id, std::move(request), options);
 }
 
 void TonlibMultiClient::start_up() {
@@ -118,10 +124,10 @@ void TonlibMultiClient::alarm() {
         td::actor::send_closure(actor_id(this), &TonlibMultiClient::do_check_archival);
         next_archival_check_ = td::Timestamp::in(10.0);
         LOG(INFO) << "Checking archival workers";
-
-        // FIXME: debug method
-        td::actor::send_closure(actor_id(this), &TonlibMultiClient::test_method);
     }
+    
+    // FIXME: debug method
+    td::actor::send_closure(actor_id(this), &TonlibMultiClient::test_method);
 
     // print info 
     td::StringBuilder builder;
@@ -210,27 +216,103 @@ void TonlibMultiClient::do_update_consensus_block() {
 }
 
 void TonlibMultiClient::request(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::Function> object, RequestOptions options) {
-    auto worker_ids = select_workers(options);
-    LOG(ERROR) << "Got workers: " << worker_ids.size();
+    auto object_json_str = td::json_encode<std::string>(td::ToJson(object), false);
+    request_json(id, object_json_str, options);
+}
 
-    for(auto ls_index : worker_ids) {
-        auto promise = td::PromiseCreator::lambda([id, ls_index] (td::Result<tonlib_api::object_ptr<tonlib_api::Object>> R) {
-            if (R.is_error()) {
-                LOG(WARNING) << "LS #" << ls_index << " request #" << id << " failed:" << R.move_as_error();
-                return;
-            }
+void TonlibMultiClient::request_json_single(std::uint64_t id, std::int32_t ls_index, std::string object_json_str) {
+    LOG(INFO) << "Request #" << id << " is single request";
+    auto promise = td::PromiseCreator::lambda([id, ls_index, SelfId = actor_id(this)] (td::Result<tonlib_api::object_ptr<tonlib_api::Object>> R) mutable {
+        Response response = {id};
+        if (R.is_error()) {
+            auto error = R.move_as_error();
+            LOG(WARNING) << "LS #" << ls_index << " request #" << id << " failed:" << error;
+            response.results.push_back({ls_index, nullptr, nullptr});
+        } else {
             auto result = R.move_as_ok();
-            auto &obj = *result.get();
-            auto obj2 = tonlib_api::to_string(obj);
-            LOG(INFO) << "LS #" << ls_index 
-                      << " request #" << id 
-                      << " done." << obj2;
+            LOG(DEBUG) << "LS #" << ls_index << " request #" << id << " ok:" << td::json_encode<std::string>(td::ToJson(*result.get()));
+            if (result->get_id() == tonlib_api::error::ID) {
+                response.results.push_back({ls_index, nullptr, tonlib_api::move_object_as<tonlib_api::error>(result)});
+            } else {
+                response.results.push_back({ls_index, std::move(result), nullptr});
+            }
+        }
+        td::actor::send_closure(SelfId, &TonlibMultiClient::got_request_response, std::move(response));
+    });
+    tonlib_api::object_ptr<tonlib_api::Function> func;
+    auto object_json = td::json_decode(object_json_str).move_as_ok();
+        auto status = from_json(func, std::move(object_json));
+        if (status.is_error()) {
+            LOG(ERROR) << "Something went wrong in decoding of the encoded object";
+            return;
+        }
+    td::actor::send_closure(workers_[ls_index].client_, &tonlib::TonlibClientWrapper::send_any_request, std::move(func), std::move(promise));
+}
+
+void TonlibMultiClient::request_json_multiple(std::uint64_t id, std::vector<std::int32_t> ls_index_list, std::string object_json_str) {
+    // ugly copying the request
+    auto response_ptr = std::make_shared<Response>();
+    response_ptr->id = id;
+
+    td::MultiPromise mp;
+    auto ig = mp.init_guard();
+    auto final_promise = td::PromiseCreator::lambda([response_ptr, SelfId = actor_id(this)](td::Result<td::Unit> R) {
+        if (R.is_error()) {
+            LOG(WARNING) << "Request #" << response_ptr->id << ". Final promise error: " << R.move_as_error();
+        } else {
+            LOG(DEBUG) << "Request #" << response_ptr->id << ". Final promise OK";
+        }
+        td::actor::send_closure(SelfId, &TonlibMultiClient::got_request_response, std::move(*response_ptr));
+    });
+    ig.add_promise(std::move(final_promise));
+
+    for(auto ls_index : ls_index_list) {
+        auto promise = td::PromiseCreator::lambda([ls_index, response_ptr, promise_ = ig.get_promise()] (td::Result<tonlib_api::object_ptr<tonlib_api::Object>> R) mutable {
+            if (R.is_error()) {
+                auto error = R.move_as_error();
+                LOG(WARNING) << "LS #" << ls_index << " request #" << response_ptr->id << " failed:" << error;
+                response_ptr->results.push_back({ls_index, nullptr, nullptr});
+            } else {
+                auto result = R.move_as_ok();
+                LOG(DEBUG) << "LS #" << ls_index << " request #" << response_ptr->id << " ok:" << td::json_encode<std::string>(td::ToJson(*result.get()));
+                if (result->get_id() == tonlib_api::error::ID) {
+                    response_ptr->results.push_back({ls_index, nullptr, tonlib_api::move_object_as<tonlib_api::error>(result)});
+                } else {
+                    response_ptr->results.push_back({ls_index, std::move(result), nullptr});
+                }
+            }
+            promise_.set_result(td::Unit());
         });
-        td::actor::send_closure(workers_[ls_index].client_, &tonlib::TonlibClientWrapper::send_any_request, object, std::move(promise));
+        tonlib_api::object_ptr<tonlib_api::Function> func;
+        auto object_json = td::json_decode(object_json_str).move_as_ok();
+        auto status = from_json(func, std::move(object_json));
+        if (status.is_error()) {
+            LOG(ERROR) << "Something went wrong in decoding of the encoded object";
+            return;
+        }
+        td::actor::send_closure(workers_[ls_index].client_, &tonlib::TonlibClientWrapper::send_any_request, std::move(func), std::move(promise));
     }
 }
 
-void TonlibMultiClient::got_request_response(std::uint64_t id, Response R) {
+void TonlibMultiClient::request_json(std::uint64_t id, std::string object_json_str, RequestOptions options) {
+    auto ls_index_list = select_workers(options);
+    LOG(DEBUG) << "Request " << id << " will be sent to " << ls_index_list.size() << " workers";
+
+    if (ls_index_list.size() > 1) {
+        request_json_multiple(id, ls_index_list, object_json_str);
+        return;
+    } else if (ls_index_list.size() == 1) {
+        request_json_single(id, ls_index_list[0], object_json_str);
+        return;
+    } else {
+        // TODO: handle error
+        return;
+    }
+}
+
+void TonlibMultiClient::got_request_response(Response R) {
+    LOG(INFO) << "Got request #" << R.id << " response with " << R.results.size() << " results.";
+    callback_->on_result(R.id, std::move(R));
 }
 
 std::vector<std::int32_t> TonlibMultiClient::select_workers(RequestOptions options) {

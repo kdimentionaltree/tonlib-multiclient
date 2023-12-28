@@ -7,7 +7,6 @@
 #include "common/delay.h"
 #include "auto/tl/tonlib_api.hpp"
 #include "tonlib/TonlibClientWrapper.h"
-#include "tonlib/TonlibCallback.h"
 
 
 constexpr std::int32_t MAX_RETRY_COUNT = 2;
@@ -33,6 +32,14 @@ struct Response {
     std::vector<SingleResponse> results;
 };
 
+
+class TonlibMultiClientCallback {
+public:
+    virtual void on_result(std::uint64_t id, Response response) = 0;
+    virtual void on_error(std::uint64_t id, std::string error) = 0;
+    virtual ~TonlibMultiClientCallback() = default;
+};
+
 class TonlibMultiClient: public td::actor::Actor {
 public:
     struct WorkerInfo {
@@ -49,16 +56,17 @@ public:
         td::Timestamp retry_after = td::Timestamp::at(0);
     };
 
-    TonlibMultiClient(std::string global_config_str, std::string keystore_dir, td::unique_ptr<tonlib::TonlibCallback> callback);
+    TonlibMultiClient(std::string global_config_str, std::string keystore_dir, td::unique_ptr<TonlibMultiClientCallback> callback);
 
     void start_up() override;
     void alarm() override;
 
     void request(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::Function> object, RequestOptions options = RequestOptions());
+    void request_json(std::uint64_t id, std::string object_json_str, RequestOptions options = RequestOptions());
 private:
     std::string global_config_str_;
     std::string keystore_dir_;
-    td::unique_ptr<tonlib::TonlibCallback> callback_;
+    td::unique_ptr<TonlibMultiClientCallback> callback_;
     
     std::int32_t consensus_block_seqno_;
     td::Timestamp next_archival_check_;
@@ -83,7 +91,10 @@ private:
     void got_archival_update(std::int32_t ls_index, bool archival);
     void got_worker_update(std::int32_t ls_index, tonlib_api::object_ptr<tonlib_api::blocks_masterchainInfo> info);
     void got_worker_update_error(std::int32_t ls_index);
-    void got_request_response(std::uint64_t id, Response R);
+    void got_request_response(Response R);
 
     std::vector<std::int32_t> select_workers(RequestOptions options);
+
+    void request_json_single(std::uint64_t id, std::int32_t ls_index, std::string object_json_str);
+    void request_json_multiple(std::uint64_t id, std::vector<std::int32_t> ls_index_list, std::string object_json_str);
 };
