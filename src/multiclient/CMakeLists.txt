@@ -11,7 +11,8 @@ add_library(tonlib::multiclient ALIAS ${PROJECT_NAME})
 target_link_libraries(
   ${PROJECT_NAME}
   tonlib tdactor
-  tl_tonlib_api tl_tonlib_api_json tl_lite_api tl-lite-utils
+  tl_api tl_tonlib_api_json tl_tonlib_api tl_lite_api tl-lite-utils
   tdutils ton_crypto ton_block
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+add_dependencies(${PROJECT_NAME} tl_generate_common)

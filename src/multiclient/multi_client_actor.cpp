@@ -3,7 +3,9 @@
 #include <random>
 #include <ranges>
 #include <string>
+#include "auto/tl/tonlib_api.h"
 #include "request.h"
+#include "td/actor/PromiseFuture.h"
 #include "td/actor/actor.h"
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/check.h"
@@ -63,7 +65,39 @@ T get_random_index(T from, T to) {
 
 }  // namespace
 
+void MultiClientActor::send_request_json(RequestJson request, td::Promise<std::string> promise) {
+  auto worker_indices = select_workers(request.parameters);
+  if (worker_indices.empty()) {
+    promise.set_error(td::Status::Error("No workers available"));
+    return;
+  }
+
+  auto request_id = json_request_id_++;
+  auto multi_promise = PromiseSuccessAny<std::string>(std::move(promise));
+  for (auto worker_index : worker_indices) {
+    send_worker_request_json(worker_index, request_id, request.request, multi_promise.get_promise());
+  }
+}
+
+
+void MultiClientActor::send_callback_request(RequestCallback request) {
+  CHECK(callback_ != nullptr);
+
+  auto worker_indices = select_workers(request.parameters);
+  if (worker_indices.empty()) {
+    callback_->on_error(request.request_id, tonlib_api::make_object<tonlib_api::error>(400, "No workers available"));
+    return;
+  }
+
+  for (auto worker_index : worker_indices) {
+    send_worker_callback_request(worker_index, request.request_id, request.request_creator());
+  }
+}
+
 void MultiClientActor::start_up() {
+  static constexpr double kFirstAlarmAfter = 1.0;
+  static constexpr double kCheckArchivalForFirstTimeAfter = 22.0;
+
   CHECK(std::filesystem::exists(config_.global_config_path));
 
   auto global_config = td::read_file_str(config_.global_config_path.string()).move_as_ok();
@@ -92,18 +126,19 @@ void MultiClientActor::start_up() {
                     std::make_optional<std::filesystem::path>(*config_.key_store_root / ("ls_" + std::to_string(i))) :
                     std::nullopt,
                 .blockchain_name = config_.blockchain_name,
-            }
+            },
+            callback_
         ),
     });
   }
 
-  alarm_timestamp() = td::Timestamp::in(1.0);
-  next_archival_check_ = td::Timestamp::in(2.0);
+  alarm_timestamp() = td::Timestamp::in(kFirstAlarmAfter);
+  next_archival_check_ = td::Timestamp::in(kCheckArchivalForFirstTimeAfter);
 }
 
 void MultiClientActor::alarm() {
   static constexpr double kDefaultAlarmInterval = 1.0;
-  static constexpr double kCheckArchivalInterval = 10.0;
+  static constexpr double kCheckArchivalInterval = 10 * 60.0;
 
   LOG(DEBUG) << "Checking alive workers";
   check_alive();

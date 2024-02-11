@@ -1,11 +1,16 @@
 #include "client_wrapper.h"
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include "auto/tl/tonlib_api.h"
+#include "auto/tl/tonlib_api.hpp"
+#include "auto/tl/tonlib_api_json.h"
 #include "td/actor/ActorId.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/actor.h"
+#include "td/utils/JsonBuilder.h"
 #include "td/utils/unique_ptr.h"
+#include "tl/tl_json.h"
 #include "tonlib/TonlibCallback.h"
 #include "tonlib/TonlibClient.h"
 
@@ -13,25 +18,35 @@ namespace multiclient {
 
 namespace {
 
-class ClientWrapperEmptyCallback : public tonlib::TonlibCallback {
+class ClientWrapperCallback : public tonlib::TonlibCallback {
 public:
-  void on_result(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) final {
+  ClientWrapperCallback(td::actor::ActorId<ClientWrapper> client_id) : client_id_(client_id) {
   }
 
-  void on_error(std::uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) final {
+  ~ClientWrapperCallback() = default;
+
+  void on_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) final {
+    td::actor::send_closure(client_id_, &ClientWrapper::on_cb_result, id, std::move(result));
   }
 
-  ~ClientWrapperEmptyCallback() = default;
+  void on_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) final {
+    td::actor::send_closure(client_id_, &ClientWrapper::on_cb_error, id, std::move(error));
+  }
+
+private:
+  td::actor::ActorId<ClientWrapper> client_id_;
 };
 
 }  // namespace
 
-ClientWrapper::ClientWrapper(ClientConfig config) : config_(std::move(config)) {
+ClientWrapper::ClientWrapper(ClientConfig config, std::shared_ptr<tonlib::TonlibCallback> callback) :
+    td::actor::Actor(), config_(std::move(config)), callback_(std::move(callback)) {
 }
 
 void ClientWrapper::start_up() {
-  tonlib_client_ =
-      td::actor::create_actor<tonlib::TonlibClient>("ClientWrapper", td::make_unique<ClientWrapperEmptyCallback>());
+  tonlib_client_ = td::actor::create_actor<tonlib::TonlibClient>(
+      "TonlibClient", td::make_unique<ClientWrapperCallback>(actor_id(this))
+  );
   alarm();
 }
 
@@ -74,5 +89,55 @@ void ClientWrapper::on_inited() {
   inited_ = true;
 }
 
+void ClientWrapper::on_cb_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) {
+  LOG(DEBUG) << "on_cb_result id: " << id;
+
+  if (auto it = json_requests_.find(id); it != json_requests_.end()) {
+    auto promise = std::move(it->second);
+    json_requests_.erase(it);
+
+    auto serialized = td::json_encode<td::string>(td::ToJson(result));
+    promise.set_result(std::move(serialized));
+  }
+  if (callback_ != nullptr) {
+    callback_->on_result(id, std::move(result));
+  }
+}
+
+void ClientWrapper::on_cb_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) {
+  if (auto it = json_requests_.find(id); it != json_requests_.end()) {
+    auto promise = std::move(it->second);
+    json_requests_.erase(it);
+
+    promise.set_error(td::Status::Error(error->message_));
+  }
+  if (callback_ != nullptr) {
+    callback_->on_error(id, std::move(error));
+  }
+}
+
+void ClientWrapper::send_request_json(uint64_t request_id, std::string request, td::Promise<std::string> promise) {
+  auto object_json_res = td::json_decode(request);
+  if (object_json_res.is_error()) {
+    promise.set_error(td::Status::Error("Failed to decode json request"));
+    return;
+  }
+
+  ton::tonlib_api::object_ptr<ton::tonlib_api::Function> func;
+  auto status = td::from_json(func, object_json_res.move_as_ok());
+  if (status.is_error()) {
+    promise.set_error(td::Status::Error("Failed to parse request"));
+    return;
+  }
+
+  json_requests_.emplace(request_id, std::move(promise));
+  send_callback_request(request_id, std::move(func));
+}
+
+void ClientWrapper::send_callback_request(
+    uint64_t request_id, ton::tonlib_api::object_ptr<ton::tonlib_api::Function>&& request
+) {
+  td::actor::send_closure(tonlib_client_, &tonlib::TonlibClient::request, request_id, std::move(request));
+}
 
 }  // namespace multiclient

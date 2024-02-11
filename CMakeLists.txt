@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS FALSE)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-add_subdirectory(external/ton)
+add_subdirectory(external/ton EXCLUDE_FROM_ALL)
 
 add_subdirectory(src)
 add_subdirectory(examples)

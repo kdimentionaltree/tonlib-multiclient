@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <thread>
+#include "auto/tl/tonlib_api.h"
 #include "multiclient/multi_client_actor.h"
 #include "request.h"
 #include "td/actor/ActorId.h"
@@ -12,6 +13,8 @@
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/actor.h"
 #include "td/utils/Status.h"
+#include "td/utils/unique_ptr.h"
+#include "tonlib/TonlibCallback.h"
 
 namespace multiclient {
 
@@ -25,11 +28,13 @@ struct MultiClientConfig {
 
 class MultiClient {
 public:
-  explicit MultiClient(MultiClientConfig config);
+  explicit MultiClient(MultiClientConfig config, td::unique_ptr<tonlib::TonlibCallback> callback = nullptr);
   ~MultiClient();
 
   template <typename T>
   td::Result<typename T::ReturnType> send_request(Request<T> req) const;
+  td::Result<std::string> send_request_json(RequestJson req) const;
+  void send_callback_request(RequestCallback req) const;
 
 private:
   const MultiClientConfig config_;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include "td/actor/PromiseFuture.h"
@@ -14,8 +15,8 @@ private:
     }
 
     td::Promise<T> promise;
-    int64_t pending_count = 0;
-    std::mutex mutex;
+    std::atomic_uint64_t pending_count{0};
+    std::mutex mutex{};
   };
 
 public:
@@ -23,12 +24,12 @@ public:
   }
 
   td::Promise<T> get_promise() {
-    control_block_->pending_count += 1;
+    control_block_->pending_count.fetch_add(1, std::memory_order_relaxed);
     return [ctrl = control_block_](td::Result<T> res) {
       std::unique_lock<std::mutex> lock(ctrl->mutex);
-      ctrl->pending_count -= 1;
+      auto pending_count = ctrl->pending_count.fetch_sub(1, std::memory_order_relaxed);
       if (!res.is_ok()) {
-        if (ctrl->pending_count <= 0) {
+        if (pending_count <= 0) {
           ctrl->promise.set_error(td::Status::Error("All promises failed"));
         }
         return;

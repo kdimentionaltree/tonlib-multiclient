@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include "auto/tl/tonlib_api.h"
 
 namespace multiclient {
 
@@ -26,6 +27,14 @@ struct Request {
 
   RequestParameters parameters;
   CreateTonlibRequestFunc request_creator;
+};
+
+struct RequestCallback {
+  using CreateTonlibCallbackRequestFunc = std::function<ton::tonlib_api::object_ptr<ton::tonlib_api::Function>()>;
+
+  RequestParameters parameters;
+  CreateTonlibCallbackRequestFunc request_creator;
+  size_t request_id = 999;
 };
 
 struct RequestJson {
