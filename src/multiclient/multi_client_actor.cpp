@@ -248,8 +248,12 @@ void MultiClientActor::on_archival_checked(size_t worker_index, bool is_archival
 
 std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& options) const {
   std::vector<size_t> result;
-  result.reserve(workers_.size());
+  if (!options.are_valid()) {
+    LOG(WARNING) << "invalid request parameters";
+    return result;
+  }
 
+  result.reserve(workers_.size());
   for (size_t i : std::views::iota(0u, workers_.size()) |
            std::views::filter([&](size_t i) { return workers_[i].is_alive; }) |
            std::views::filter([&](size_t i) { return options.archival == true ? workers_[i].is_archival : true; })) {
@@ -266,8 +270,6 @@ std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& op
 
     case RequestMode::Single: {
       if (options.lite_server_indexes.has_value()) {
-        CHECK(!options.lite_server_indexes->empty() && options.lite_server_indexes->size() == 1);
-
         return std::find(result.begin(), result.end(), options.lite_server_indexes->front()) != result.end() ?
             std::vector<size_t>{options.lite_server_indexes.value().front()} :
             std::vector<size_t>{};
@@ -277,9 +279,6 @@ std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& op
     }
 
     case RequestMode::Multiple: {
-      CHECK(!(options.clients_number.has_value() && options.lite_server_indexes.has_value()));
-      CHECK(options.clients_number.has_value() || options.lite_server_indexes.has_value());
-
       if (options.lite_server_indexes.has_value()) {
         std::set<size_t> result_set(result.begin(), result.end());
         for (auto index : options.lite_server_indexes.value()) {

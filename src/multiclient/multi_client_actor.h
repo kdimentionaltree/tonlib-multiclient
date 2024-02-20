@@ -7,12 +7,11 @@
 #include <vector>
 #include "auto/tl/tonlib_api.h"
 #include "client_wrapper.h"
-#include "multiclient/promise.h"
+#include "promise.h"
 #include "request.h"
 #include "td/actor/ActorOwn.h"
 #include "td/actor/common.h"
 #include "td/utils/Time.h"
-#include "td/utils/unique_ptr.h"
 #include "tonlib/TonlibCallback.h"
 
 namespace multiclient {
@@ -28,7 +27,7 @@ struct MultiClientActorConfig {
 
 class MultiClientActor : public td::actor::Actor {
 public:
-  explicit MultiClientActor(MultiClientActorConfig config, td::unique_ptr<tonlib::TonlibCallback> callback = nullptr) :
+  explicit MultiClientActor(MultiClientActorConfig config, std::unique_ptr<tonlib::TonlibCallback> callback = nullptr) :
       config_(std::move(config)), callback_(callback.release()) {
   }
 

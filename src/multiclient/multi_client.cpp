@@ -7,12 +7,11 @@
 
 namespace multiclient {
 
-MultiClient::MultiClient(MultiClientConfig config, td::unique_ptr<tonlib::TonlibCallback> callback) :
+MultiClient::MultiClient(MultiClientConfig config, std::unique_ptr<tonlib::TonlibCallback> callback) :
     config_(std::move(config)),
     scheduler_(
         std::make_shared<td::actor::Scheduler>(std::vector<td::actor::Scheduler::NodeInfo>{config.scheduler_threads})
-    ),
-    scheduler_thread_([scheduler = scheduler_] { scheduler->run(); }) {
+    ) {
   scheduler_->run_in_context_external([this, cb = std::move(callback)]() mutable {
     client_ = td::actor::create_actor<MultiClientActor>(
         "multiclient",
@@ -25,6 +24,7 @@ MultiClient::MultiClient(MultiClientConfig config, td::unique_ptr<tonlib::Tonlib
         std::move(cb)
     );
   });
+  scheduler_thread_ = std::thread([scheduler = scheduler_] { scheduler->run(); });
 }
 
 MultiClient::~MultiClient() {

@@ -8,7 +8,7 @@
 
 namespace multiclient {
 
-enum class RequestMode {
+enum class RequestMode : uint8_t {
   Single,
   Broadcast,
   Multiple,
@@ -19,6 +19,19 @@ struct RequestParameters {
   std::optional<std::vector<size_t>> lite_server_indexes = std::nullopt;
   std::optional<size_t> clients_number = std::nullopt;
   bool archival = false;
+
+  bool are_valid() const {
+    if (mode == RequestMode::Single) {
+      return !lite_server_indexes->empty() && lite_server_indexes->size() == 1;
+    }
+
+    if (mode == RequestMode::Multiple) {
+      return !(clients_number.has_value() && lite_server_indexes.has_value()) &&
+          (clients_number.has_value() || lite_server_indexes.has_value());
+    }
+
+    return true;
+  }
 };
 
 template <typename T>
