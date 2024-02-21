@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include "response_callback.h"
 #include "td/actor/ActorOwn.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/actor.h"
@@ -25,7 +26,8 @@ struct ClientConfig {
 
 class ClientWrapper : public td::actor::Actor {
 public:
-  explicit ClientWrapper(ClientConfig config, std::shared_ptr<tonlib::TonlibCallback> callback);
+  explicit ClientWrapper(ClientConfig config, std::shared_ptr<ResponseCallback> callback);
+  explicit ClientWrapper(uint64_t client_id, ClientConfig config, std::shared_ptr<ResponseCallback> callback);
 
   void start_up() override;
   void alarm() override;
@@ -35,15 +37,16 @@ public:
   void send_callback_request(uint64_t request_id, ton::tonlib_api::object_ptr<ton::tonlib_api::Function>&& request);
   void send_request_json(uint64_t request_id, std::string req, td::Promise<std::string> promise);
 
-  void on_cb_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result);
-  void on_cb_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error);
-
 private:
   void try_init();
   void on_inited();
 
+  void on_cb_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result);
+  void on_cb_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error);
+
+  const uint64_t client_id_;
   const ClientConfig config_;
-  std::shared_ptr<tonlib::TonlibCallback> callback_;
+  std::shared_ptr<ResponseCallback> callback_;
   td::actor::ActorOwn<tonlib::TonlibClient> tonlib_client_;
 
   std::unordered_map<uint64_t, td::Promise<std::string>> json_requests_;

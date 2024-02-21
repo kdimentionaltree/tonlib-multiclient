@@ -1,13 +1,14 @@
 
 #include "multi_client.h"
-#include "multiclient/multi_client_actor.h"
-#include "multiclient/request.h"
+#include "multi_client_actor.h"
+#include "request.h"
+#include "response_callback.h"
 #include "td/actor/actor.h"
 #include "td/actor/common.h"
 
 namespace multiclient {
 
-MultiClient::MultiClient(MultiClientConfig config, std::unique_ptr<tonlib::TonlibCallback> callback) :
+MultiClient::MultiClient(MultiClientConfig config, std::unique_ptr<ResponseCallback> callback) :
     config_(std::move(config)),
     scheduler_(
         std::make_shared<td::actor::Scheduler>(std::vector<td::actor::Scheduler::NodeInfo>{config.scheduler_threads})

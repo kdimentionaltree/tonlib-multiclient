@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <unordered_set>
 #include "auto/tl/tonlib_api.h"
@@ -7,27 +8,30 @@
 #include "auto/tl/tonlib_api_json.h"
 #include "multiclient/multi_client.h"
 #include "multiclient/request.h"
+#include "multiclient/response_callback.h"
 #include "td/utils/JsonBuilder.h"
 #include "td/utils/logging.h"
-#include "td/utils/unique_ptr.h"
 #include "tl/tl_json.h"
-#include "tonlib/TonlibCallback.h"
+#include "tonlib/Logging.h"
 
-struct Cb : public tonlib::TonlibCallback {
+struct Cb : public multiclient::ResponseCallback {
   Cb(std::unordered_set<uint64_t>& requests) : requests_(requests) {
   }
+  ~Cb() override = default;
 
-  void on_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) override {
-    if (requests_.contains(id)) {
+  void on_result(int64_t client_id, uint64_t req_id, tonlib_api::object_ptr<tonlib_api::Object> result) override {
+    if (requests_.contains(req_id)) {
       auto serialized = td::json_encode<td::string>(td::ToJson(result));
-      LOG(INFO) << "result id: " << result->get_id() << " serialized: " << serialized;
-      requests_.erase(id);
+      LOG(INFO) << "result | client_id: " << client_id << " req_id: " << req_id << " res_tl_id: " << result->get_id()
+                << " << serialized << " << serialized;
+      requests_.erase(req_id);
     }
   }
 
-  void on_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) override {
-    if (requests_.contains(id)) {
-      LOG(ERROR) << "error | code: " << error->code_ << " message: " << error->message_;
+  void on_error(int64_t client_id, uint64_t req_id, tonlib_api::object_ptr<tonlib_api::error> error) override {
+    if (requests_.contains(req_id)) {
+      LOG(ERROR) << "error | client_id: " << client_id << " req_id: " << req_id << " code: " << error->code_
+                 << " message: " << error->message_;
     }
   }
 
@@ -35,16 +39,18 @@ struct Cb : public tonlib::TonlibCallback {
 };
 
 int main(int argc, char* argv[]) {
+  tonlib::Logging::set_verbosity_level(3);
+
   uint64_t request_id = 9999;
   std::unordered_set<uint64_t> requests{};
 
   multiclient::MultiClient client(
       multiclient::MultiClientConfig{
-          .global_config_path = std::filesystem::path("/code/ton/ton-multiclient/local-config.json"),
+          .global_config_path = std::filesystem::path("/code/ton/ton-multiclient/global-config.json"),
           .key_store_root = std::filesystem::path("/code/ton/ton-multiclient/keystore"),
           .scheduler_threads = 6,
       },
-      td::make_unique<Cb>(requests)
+      std::make_unique<Cb>(requests)
   );
 
   sleep(5);

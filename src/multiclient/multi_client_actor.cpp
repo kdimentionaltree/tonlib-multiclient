@@ -82,11 +82,15 @@ void MultiClientActor::send_request_json(RequestJson request, td::Promise<std::s
 
 
 void MultiClientActor::send_callback_request(RequestCallback request) {
+  static constexpr size_t kUndefinedClientId = -1;
+
   CHECK(callback_ != nullptr);
 
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    callback_->on_error(request.request_id, tonlib_api::make_object<tonlib_api::error>(400, "No workers available"));
+    callback_->on_error(
+        kUndefinedClientId, request.request_id, tonlib_api::make_object<tonlib_api::error>(400, "No workers available")
+    );
     return;
   }
 
@@ -117,14 +121,17 @@ void MultiClientActor::start_up() {
 
   LOG(INFO) << "starting " << config_splitted_by_liteservers.size() << " client workers";
 
-  for (size_t i = 0; i < config_splitted_by_liteservers.size(); i++) {
+  for (size_t client_index = 0; client_index < config_splitted_by_liteservers.size(); client_index++) {
     workers_.push_back(WorkerInfo{
         .id = td::actor::create_actor<ClientWrapper>(
-            td::actor::ActorOptions().with_name("multiclient_worker_" + std::to_string(i)).with_poll(),
+            td::actor::ActorOptions().with_name("multiclient_worker_" + std::to_string(client_index)).with_poll(),
+            client_index,
             ClientConfig{
-                .global_config = config_splitted_by_liteservers[i],
+                .global_config = config_splitted_by_liteservers[client_index],
                 .key_store = config_.key_store_root.has_value() ?
-                    std::make_optional<std::filesystem::path>(*config_.key_store_root / ("ls_" + std::to_string(i))) :
+                    std::make_optional<std::filesystem::path>(
+                        *config_.key_store_root / ("ls_" + std::to_string(client_index))
+                    ) :
                     std::nullopt,
                 .blockchain_name = config_.blockchain_name,
             },
@@ -195,9 +202,10 @@ void MultiClientActor::check_alive() {
 
 void MultiClientActor::on_alive_checked(size_t worker_index, std::optional<int32_t> last_mc_seqno) {
   static constexpr double kRetryInterval = 10.0;
+  static constexpr int32_t kUndefinedLastMcSeqno = -1;
 
   bool is_alive = last_mc_seqno.has_value();
-  int32_t last_mc_seqno_value = last_mc_seqno.value_or(-1);
+  int32_t last_mc_seqno_value = last_mc_seqno.value_or(kUndefinedLastMcSeqno);
 
   LOG(DEBUG) << "LS #" << worker_index << " is_alive: " << is_alive << " last_mc_seqno: " << last_mc_seqno_value;
 

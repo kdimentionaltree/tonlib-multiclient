@@ -8,12 +8,12 @@
 #include "auto/tl/tonlib_api.h"
 #include "multi_client_actor.h"
 #include "request.h"
+#include "response_callback.h"
 #include "td/actor/ActorId.h"
 #include "td/actor/ActorOwn.h"
 #include "td/actor/PromiseFuture.h"
 #include "td/actor/actor.h"
 #include "td/utils/Status.h"
-#include "tonlib/TonlibCallback.h"
 
 namespace multiclient {
 
@@ -27,7 +27,7 @@ struct MultiClientConfig {
 
 class MultiClient {
 public:
-  explicit MultiClient(MultiClientConfig config, std::unique_ptr<tonlib::TonlibCallback> callback = nullptr);
+  explicit MultiClient(MultiClientConfig config, std::unique_ptr<ResponseCallback> callback = nullptr);
   ~MultiClient();
 
   template <typename T>

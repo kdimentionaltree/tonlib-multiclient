@@ -16,34 +16,34 @@
 
 namespace multiclient {
 
-namespace {
+ClientWrapper::ClientWrapper(uint64_t client_id, ClientConfig config, std::shared_ptr<ResponseCallback> callback) :
+    td::actor::Actor(), client_id_(client_id), config_(std::move(config)), callback_(std::move(callback)) {
+}
 
-class ClientWrapperCallback : public tonlib::TonlibCallback {
-public:
-  ClientWrapperCallback(td::actor::ActorId<ClientWrapper> client_id) : client_id_(client_id) {
-  }
-
-  ~ClientWrapperCallback() = default;
-
-  void on_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) final {
-    td::actor::send_closure(client_id_, &ClientWrapper::on_cb_result, id, std::move(result));
-  }
-
-  void on_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) final {
-    td::actor::send_closure(client_id_, &ClientWrapper::on_cb_error, id, std::move(error));
-  }
-
-private:
-  td::actor::ActorId<ClientWrapper> client_id_;
-};
-
-}  // namespace
-
-ClientWrapper::ClientWrapper(ClientConfig config, std::shared_ptr<tonlib::TonlibCallback> callback) :
-    td::actor::Actor(), config_(std::move(config)), callback_(std::move(callback)) {
+ClientWrapper::ClientWrapper(ClientConfig config, std::shared_ptr<ResponseCallback> callback) :
+    ClientWrapper(0, std::move(config), std::move(callback)) {
 }
 
 void ClientWrapper::start_up() {
+  class ClientWrapperCallback : public tonlib::TonlibCallback {
+  public:
+    ClientWrapperCallback(td::actor::ActorId<ClientWrapper> client_id) : client_id_(client_id) {
+    }
+
+    ~ClientWrapperCallback() = default;
+
+    void on_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) final {
+      td::actor::send_closure(client_id_, &ClientWrapper::on_cb_result, id, std::move(result));
+    }
+
+    void on_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) final {
+      td::actor::send_closure(client_id_, &ClientWrapper::on_cb_error, id, std::move(error));
+    }
+
+  private:
+    td::actor::ActorId<ClientWrapper> client_id_;
+  };
+
   tonlib_client_ = td::actor::create_actor<tonlib::TonlibClient>(
       "TonlibClient", td::make_unique<ClientWrapperCallback>(actor_id(this))
   );
@@ -100,7 +100,7 @@ void ClientWrapper::on_cb_result(uint64_t id, tonlib_api::object_ptr<tonlib_api:
     promise.set_result(std::move(serialized));
   }
   if (callback_ != nullptr) {
-    callback_->on_result(id, std::move(result));
+    callback_->on_result(client_id_, id, std::move(result));
   }
 }
 
@@ -112,7 +112,7 @@ void ClientWrapper::on_cb_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::
     promise.set_error(td::Status::Error(error->message_));
   }
   if (callback_ != nullptr) {
-    callback_->on_error(id, std::move(error));
+    callback_->on_error(client_id_, id, std::move(error));
   }
 }
 

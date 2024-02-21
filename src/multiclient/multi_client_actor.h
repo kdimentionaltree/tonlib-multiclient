@@ -9,10 +9,10 @@
 #include "client_wrapper.h"
 #include "promise.h"
 #include "request.h"
+#include "response_callback.h"
 #include "td/actor/ActorOwn.h"
 #include "td/actor/common.h"
 #include "td/utils/Time.h"
-#include "tonlib/TonlibCallback.h"
 
 namespace multiclient {
 
@@ -27,7 +27,7 @@ struct MultiClientActorConfig {
 
 class MultiClientActor : public td::actor::Actor {
 public:
-  explicit MultiClientActor(MultiClientActorConfig config, std::unique_ptr<tonlib::TonlibCallback> callback = nullptr) :
+  explicit MultiClientActor(MultiClientActorConfig config, std::unique_ptr<ResponseCallback> callback = nullptr) :
       config_(std::move(config)), callback_(callback.release()) {
   }
 
@@ -38,6 +38,10 @@ public:
   void send_request(Request<T> request, td::Promise<typename T::ReturnType> promise);
   void send_request_json(RequestJson request, td::Promise<std::string> promise);
   void send_callback_request(RequestCallback request);
+
+  size_t worker_count() const {
+    return workers_.size();
+  }
 
 private:
   struct WorkerInfo {
@@ -83,7 +87,7 @@ private:
   void on_archival_checked(size_t worker_index, bool is_archival);
 
   const MultiClientActorConfig config_;
-  std::shared_ptr<tonlib::TonlibCallback> callback_;
+  std::shared_ptr<ResponseCallback> callback_;
   std::vector<WorkerInfo> workers_;
   td::Timestamp next_archival_check_ = td::Timestamp::now();
   uint64_t json_request_id_ = 11;
