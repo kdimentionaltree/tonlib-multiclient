@@ -1,4 +1,5 @@
 #include "multi_client_actor.h"
+#include <algorithm>
 #include <cstdint>
 #include <random>
 #include <ranges>
@@ -280,13 +281,21 @@ std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& op
 
     case RequestMode::Multiple: {
       if (options.lite_server_indexes.has_value()) {
-        std::set<size_t> result_set(result.begin(), result.end());
-        for (auto index : options.lite_server_indexes.value()) {
-          if (!result_set.contains(index)) {
-            result_set.erase(index);
-          }
-        }
-        return std::vector<size_t>(result_set.begin(), result_set.end());
+        std::vector<size_t> intersection_result;
+        intersection_result.reserve(std::min<size_t>(options.clients_number.value(), result.size()));
+
+        auto lite_server_indexes = options.lite_server_indexes.value();
+        std::sort(result.begin(), result.end());
+        std::sort(lite_server_indexes.begin(), lite_server_indexes.end());
+
+        std::set_intersection(
+            result.begin(),
+            result.end(),
+            lite_server_indexes.begin(),
+            lite_server_indexes.end(),
+            std::back_inserter(intersection_result)
+        );
+        result = std::move(intersection_result);
       }
 
       std::shuffle(result.begin(), result.end(), kRandomEngine);
@@ -294,6 +303,8 @@ std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& op
       return result;
     }
   }
+
+  return result;
 }
 
 
