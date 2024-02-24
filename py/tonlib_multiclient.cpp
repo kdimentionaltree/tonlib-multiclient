@@ -27,7 +27,7 @@ PYBIND11_MODULE(tonlib_multiclient, m) {
                       size_t scheduler_threads) {
             return multiclient::MultiClientConfig{
                 .global_config_path = std::move(global_config_path),
-                .key_store_root = key_store_root,
+                .key_store_root = std::move(key_store_root),
                 .blockchain_name = std::move(blockchain_name),
                 .reset_key_store = reset_key_store,
                 .scheduler_threads = scheduler_threads,
@@ -59,7 +59,7 @@ PYBIND11_MODULE(tonlib_multiclient, m) {
                       bool archival) {
             return multiclient::RequestParameters{
                 .mode = mode,
-                .lite_server_indexes = lite_server_indexes,
+                .lite_server_indexes = std::move(lite_server_indexes),
                 .clients_number = clients_number,
                 .archival = archival,
             };
