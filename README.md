@@ -39,3 +39,17 @@ To use built python binding you need to copy `tonlib_multiclient` dynamic lib (.
 ```bash
 cp build/py/tonlib_multiclient.so /path/to/your/python/project
 ```
+
+## Requests
+
+### Request<T>
+This structure is suitable for general request operations where the response type is known and directly utilized.
+
+### RequestFunction<T>
+A specialized version of Request for cases where `TonlibClient::make_request` cannot process the request (`raw_getAccountState` etc).
+
+### RequestCallback
+Designed for advanced use cases where the user must initialize and manage the response through your own global callback. Requires explicit setup for callback handling.
+
+### RequestJson
+Enables sending requests in raw JSON format, requiring minimal configuration besides the JSON string itself and the standard request parameters.
