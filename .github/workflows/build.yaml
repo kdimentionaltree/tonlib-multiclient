@@ -38,4 +38,4 @@ jobs:
         mkdir -p build
         cd build
         cmake -DCMAKE_BUILD_TYPE=Release ..
-        make tonlib_multiclient_promise_example_bin tonlib_multiclient_callback_example_bin tonlib_multiclient_json_example_bin
+        make tonlib_multiclient_promise_example_bin tonlib_multiclient_callback_example_bin tonlib_multiclient_json_example_bin tonlib_multiclient_promise_function_req_example_bin

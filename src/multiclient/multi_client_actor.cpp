@@ -72,11 +72,9 @@ void MultiClientActor::send_request_json(RequestJson request, td::Promise<std::s
     promise.set_error(td::Status::Error("No workers available"));
     return;
   }
-
-  auto request_id = json_request_id_++;
   auto multi_promise = PromiseSuccessAny<std::string>(std::move(promise));
   for (auto worker_index : worker_indices) {
-    send_worker_request_json(worker_index, request_id, request.request, multi_promise.get_promise());
+    send_worker_request_json(worker_index, request.request, multi_promise.get_promise());
   }
 }
 

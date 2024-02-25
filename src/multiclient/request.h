@@ -42,6 +42,19 @@ struct Request {
   CreateTonlibRequestFunc request_creator;
 };
 
+// The reason for this struct is that `TonlibClient::make_request` cannot process several specific requests like
+// `ton::tonlib_api::raw_getAccountState`.
+// The main difference of `Request` that this struct uses `ton::tonlib_api::object_ptr<T>` instead of `T` for
+// `request_creator`. This kind of requests is processed by the `TonlibClient::request` (`Request` —
+// `TonlibClient::make_request`) function with callback handling under the hood of `ClientWrapper`.
+template <typename T>
+struct RequestFunction {
+  using CreateTonlibRequestFunc = std::function<ton::tonlib_api::object_ptr<T>()>;
+
+  RequestParameters parameters;
+  CreateTonlibRequestFunc request_creator;
+};
+
 struct RequestCallback {
   using CreateTonlibCallbackRequestFunc = std::function<ton::tonlib_api::object_ptr<ton::tonlib_api::Function>()>;
 

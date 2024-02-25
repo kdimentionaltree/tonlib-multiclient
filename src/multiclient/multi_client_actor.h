@@ -11,6 +11,7 @@
 #include "request.h"
 #include "response_callback.h"
 #include "td/actor/ActorOwn.h"
+#include "td/actor/PromiseFuture.h"
 #include "td/actor/common.h"
 #include "td/utils/Time.h"
 
@@ -36,6 +37,10 @@ public:
 
   template <typename T>
   void send_request(Request<T> request, td::Promise<typename T::ReturnType> promise);
+
+  template <typename T>
+  void send_request_function(RequestFunction<T> req, td::Promise<typename T::ReturnType>);
+
   void send_request_json(RequestJson request, td::Promise<std::string> promise);
   void send_callback_request(RequestCallback request);
 
@@ -62,11 +67,18 @@ private:
     );
   }
 
-  void send_worker_request_json(
-      size_t worker_index, uint64_t request_id, std::string request, td::Promise<std::string> promise
+  template <typename T>
+  void send_worker_request_function(
+      size_t worker_index, ton::tonlib_api::object_ptr<T>&& request, td::Promise<typename T::ReturnType> promise
   ) {
     td::actor::send_closure(
-        workers_[worker_index].id, &ClientWrapper::send_request_json, request_id, std::move(request), std::move(promise)
+        workers_[worker_index].id, &ClientWrapper::send_request_function<T>, std::move(request), std::move(promise)
+    );
+  }
+
+  void send_worker_request_json(size_t worker_index, std::string request, td::Promise<std::string> promise) {
+    td::actor::send_closure(
+        workers_[worker_index].id, &ClientWrapper::send_request_json, std::move(request), std::move(promise)
     );
   }
 
@@ -104,6 +116,20 @@ void MultiClientActor::send_request(Request<T> request, td::Promise<typename T::
   auto multi_promise = PromiseSuccessAny<typename T::ReturnType>(std::move(promise));
   for (auto worker_index : worker_indices) {
     send_worker_request<T>(worker_index, request.request_creator(), multi_promise.get_promise());
+  }
+}
+
+template <typename T>
+void MultiClientActor::send_request_function(RequestFunction<T> request, td::Promise<typename T::ReturnType> promise) {
+  auto worker_indices = select_workers(request.parameters);
+  if (worker_indices.empty()) {
+    promise.set_error(td::Status::Error("No workers available"));
+    return;
+  }
+
+  auto multi_promise = PromiseSuccessAny<typename T::ReturnType>(std::move(promise));
+  for (auto worker_index : worker_indices) {
+    send_worker_request_function<T>(worker_index, request.request_creator(), multi_promise.get_promise());
   }
 }
 

@@ -92,34 +92,36 @@ void ClientWrapper::on_inited() {
 void ClientWrapper::on_cb_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) {
   LOG(DEBUG) << "on_cb_result id: " << id;
 
-  if (auto it = json_requests_.find(id); it != json_requests_.end()) {
+  if (auto it = tracking_requests_.find(id); it != tracking_requests_.end()) {
     auto promise = std::move(it->second);
-    json_requests_.erase(it);
-
-    auto serialized = td::json_encode<td::string>(td::ToJson(result));
-    promise.set_result(std::move(serialized));
+    tracking_requests_.erase(it);
+    promise.set_result(std::move(result));
+    return;
   }
+
   if (callback_ != nullptr) {
     callback_->on_result(client_id_, id, std::move(result));
   }
 }
 
 void ClientWrapper::on_cb_error(uint64_t id, tonlib_api::object_ptr<tonlib_api::error> error) {
-  if (auto it = json_requests_.find(id); it != json_requests_.end()) {
+  if (auto it = tracking_requests_.find(id); it != tracking_requests_.end()) {
     auto promise = std::move(it->second);
-    json_requests_.erase(it);
-
+    tracking_requests_.erase(it);
     promise.set_error(td::Status::Error(error->message_));
+    return;
   }
+
   if (callback_ != nullptr) {
     callback_->on_error(client_id_, id, std::move(error));
   }
 }
 
-void ClientWrapper::send_request_json(uint64_t request_id, std::string request, td::Promise<std::string> promise) {
+void ClientWrapper::send_request_json(std::string request, td::Promise<std::string> promise) {
+  auto request_id = request_id_++;
   auto object_json_res = td::json_decode(request);
   if (object_json_res.is_error()) {
-    promise.set_error(td::Status::Error("Failed to decode json request"));
+    promise.set_error(td::Status::Error("Failed to decode json request from string"));
     return;
   }
 
@@ -130,7 +132,10 @@ void ClientWrapper::send_request_json(uint64_t request_id, std::string request, 
     return;
   }
 
-  json_requests_.emplace(request_id, std::move(promise));
+  tracking_requests_.emplace(request_id, promise.wrap([](auto result) {
+    return td::json_encode<td::string>(td::ToJson(result));
+  }));
+
   send_callback_request(request_id, std::move(func));
 }
 

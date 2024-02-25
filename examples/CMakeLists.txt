@@ -4,6 +4,10 @@ add_executable(tonlib_multiclient_promise_example_bin promise.cpp)
 target_link_libraries(tonlib_multiclient_promise_example_bin PUBLIC tonlib::multiclient)
 target_include_directories(tonlib_multiclient_promise_example_bin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
+add_executable(tonlib_multiclient_promise_function_req_example_bin promise_function_req.cpp)
+target_link_libraries(tonlib_multiclient_promise_function_req_example_bin PUBLIC tonlib::multiclient tl_tonlib_api)
+target_include_directories(tonlib_multiclient_promise_function_req_example_bin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+
 add_executable(tonlib_multiclient_callback_example_bin callback.cpp)
 target_link_libraries(tonlib_multiclient_callback_example_bin PUBLIC tonlib::multiclient tl_tonlib_api_json)
 target_include_directories(tonlib_multiclient_callback_example_bin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)

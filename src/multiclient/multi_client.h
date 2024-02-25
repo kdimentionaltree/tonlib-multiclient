@@ -32,6 +32,10 @@ public:
 
   template <typename T>
   td::Result<typename T::ReturnType> send_request(Request<T> req) const;
+
+  template <typename T>
+  td::Result<typename T::ReturnType> send_request_function(RequestFunction<T> req) const;
+
   td::Result<std::string> send_request_json(RequestJson req) const;
   void send_callback_request(RequestCallback req) const;
 
@@ -59,5 +63,24 @@ td::Result<typename T::ReturnType> MultiClient::send_request(Request<T> req) con
 
   return request_future.get();
 }
+
+template <typename T>
+td::Result<typename T::ReturnType> MultiClient::send_request_function(RequestFunction<T> req) const {
+  using ReturnType = typename T::ReturnType;
+
+  std::promise<td::Result<ReturnType>> request_promise;
+  auto request_future = request_promise.get_future();
+
+  auto promise = td::Promise<ReturnType>([p = std::move(request_promise)](auto result) mutable {
+    p.set_value(std::move(result));
+  });
+
+  scheduler_->run_in_context_external([this, p = std::move(promise), req = std::move(req)]() mutable {
+    td::actor::send_closure(client_.get(), &MultiClientActor::send_request_function<T>, std::move(req), std::move(p));
+  });
+
+  return request_future.get();
+}
+
 
 }  // namespace multiclient
