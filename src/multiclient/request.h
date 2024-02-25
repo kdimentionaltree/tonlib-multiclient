@@ -42,11 +42,13 @@ struct Request {
   CreateTonlibRequestFunc request_creator;
 };
 
-// The reason for this struct is that `TonlibClient::make_request` cannot process several specific requests like
-// `ton::tonlib_api::raw_getAccountState`.
-// The main difference of `Request` that this struct uses `ton::tonlib_api::object_ptr<T>` instead of `T` for
-// `request_creator`. This kind of requests is processed by the `TonlibClient::request` (`Request` —
-// `TonlibClient::make_request`) function with callback handling under the hood of `ClientWrapper`.
+// Prefer using `Request` over `RequestFunction` whenever possible.
+// This struct was introduced because `TonlibClient::make_request` is unable to process several specific requests, such
+// as `ton::tonlib_api::raw_getAccountState`. A notable difference of `Request` is its utilization of
+// `ton::tonlib_api::object_ptr<T>` rather than using `T` for the `request_creator`. This approach allows
+// requests of this specific nature to be processed by the `TonlibClient::request` function, which employs callback
+// handling within the `ClientWrapper`. This is in contrast to the `TonlibClient::make_request` function, which uses
+// native promise handling.
 template <typename T>
 struct RequestFunction {
   using CreateTonlibRequestFunc = std::function<ton::tonlib_api::object_ptr<T>()>;
