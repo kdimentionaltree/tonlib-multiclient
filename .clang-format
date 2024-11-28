@@ -1,0 +1,26 @@
+---
+Language:        Cpp
+BasedOnStyle:  Chromium
+Standard:        Latest
+AccessModifierOffset: -2
+AlignAfterOpenBracket: BlockIndent
+AlignConsecutiveBitFields: false
+AlignEscapedNewlines: DontAlign
+AlignOperands:   DontAlign
+AlignTrailingComments: false
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: Inline
+BinPackArguments: false
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializers: AfterColon
+ColumnLimit:     120
+DeriveLineEnding: false
+IndentCaseBlocks: false
+IndentExternBlock: AfterExternBlock
+InsertNewlineAtEOF: true
+InsertTrailingCommas: Wrapped
+MaxEmptyLinesToKeep: 2
+PenaltyBreakFirstLessLess: 0
+PenaltyExcessCharacter: 4000

@@ -1,26 +1,19 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+project(tonlib_multiclient CXX)
 
-project(tonlib-multiclient)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_EXTENSIONS FALSE)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+set(PY_TONLIB_MULTICLIENT FALSE CACHE BOOL "Build python bindings")
 
 add_subdirectory(external/ton EXCLUDE_FROM_ALL)
 
-# tonlib-multiclient
-add_executable(tonlib-multiclient 
-    src/main.cpp
-    src/TonlibMultiClient.cpp
-)
+add_subdirectory(src)
+add_subdirectory(examples)
 
-target_include_directories(tonlib-multiclient 
-    PUBLIC external/ton
-    PUBLIC src/
-)
-target_link_directories(tonlib-multiclient 
-    PUBLIC external/ton
-)
-
-target_compile_features(tonlib-multiclient PRIVATE cxx_std_17)
-target_link_libraries(tonlib-multiclient 
-        tdutils tdactor adnllite tl_lite_api tl-lite-utils 
-        ton_crypto ton_crypto_core ton_block lite-client-common 
-        smc-envelope emulator_static tl_tonlib_api_json tonlib)
-
+if (PY_TONLIB_MULTICLIENT)
+  add_subdirectory(external/pybind11 EXCLUDE_FROM_ALL)
+  add_subdirectory(py)
+endif()
