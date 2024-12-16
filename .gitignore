@@ -210,3 +210,12 @@ cython_debug/
 /sandbox
 sandbox.ipynb
 /trace*.txt
+
+# build
+[Bb][Uu][Ii][Ll][Dd]*
+sandbox/
+
+# vs code
+.vscode/
+.idea/
+.DS_Store

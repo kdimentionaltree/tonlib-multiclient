@@ -46,6 +46,8 @@ private:
   td::actor::ActorOwn<MultiClientActor> client_;
 };
 
+using MultiClientPtr = std::unique_ptr<MultiClient>;
+
 template <typename T>
 td::Result<typename T::ReturnType> MultiClient::send_request(Request<T> req) const {
   using ReturnType = typename T::ReturnType;

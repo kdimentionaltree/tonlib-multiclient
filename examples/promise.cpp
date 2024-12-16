@@ -1,14 +1,14 @@
 #include <unistd.h>
 #include "auto/tl/tonlib_api.h"
-#include "multiclient/multi_client.h"
-#include "multiclient/request.h"
+#include "tonlib-multiclient/multi_client.h"
+#include "tonlib-multiclient/request.h"
 #include "td/utils/logging.h"
 
 
 int main(int argc, char* argv[]) {
   multiclient::MultiClient client(multiclient::MultiClientConfig{
-      .global_config_path = std::filesystem::path("/code/ton/ton-multiclient/global-config.json"),
-      .key_store_root = std::filesystem::path("/code/ton/ton-multiclient/keystore"),
+      .global_config_path = std::filesystem::path("/tmp/global-config.json"),
+      .key_store_root = std::filesystem::path("/tmp/keystore"),
       .scheduler_threads = 6,
   });
 
