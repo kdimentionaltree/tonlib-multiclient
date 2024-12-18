@@ -14,15 +14,12 @@ TonlibComponent::TonlibComponent(
 ) :
     userver::components::ComponentBase(config, context),
     config_(context.FindComponent<userver::components::DynamicConfig>().GetSource()),
-    tonlib_(multiclient::MultiClientConfig{
+    worker_(multiclient::MultiClientConfig{
         .global_config_path = config["global_config"].As<std::string>(),
         .key_store_root = config["keystore"].As<std::string>(),
         .scheduler_threads = config["threads"].As<std::size_t>()
     }),
     task_processor_(context.GetTaskProcessor(config["task_processor"].As<std::string>())) {
-}
-const multiclient::MultiClient& TonlibComponent::GetTonlib() const {
-  return tonlib_;
 }
 
 userver::yaml_config::Schema TonlibComponent::GetStaticConfigSchema() {

@@ -15,5 +15,4 @@ public:
     using HttpHandlerBase::HttpHandlerBase;
     std::string HandleRequestThrow(const userver::server::http::HttpRequest &request, userver::server::request::RequestContext &context) const override;
 };
-
 }

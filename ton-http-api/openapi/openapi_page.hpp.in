@@ -1,0 +1,11 @@
+#pragma once
+#include <string>
+
+namespace ton_http::openapi {
+std::string GetOpenApiPage() {
+    return R"(@OPENAPI_HTML_CONTENT@)";
+}
+std::string GetOpenApiJson() {
+    return R"(@OPENAPI_JSON_CONTENT@)";
+}
+}

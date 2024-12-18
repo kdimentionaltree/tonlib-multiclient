@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="SwaggerUI" />
+    <title>SwaggerUI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" crossorigin></script>
+<script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js" crossorigin></script>
+<script>
+    window.onload = () => {
+        window.ui = SwaggerUIBundle({
+            url: '/api/v2/openapi.json',
+            layout: "BaseLayout",
+            deepLinking: true,
+            dom_id: '#swagger-ui',
+            plugins: [SwaggerUIBundle.plugins.DownloadURL],
+            defaultModelRendering: "example",
+            docExpansion:"list",
+            tryItOutEnabled:true,
+            showMutatedRequest:false,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIStandalonePreset
+            ],
+            syntaxHighlight: {"activate":true,"theme":"agate"}
+        });
+    };
+</script>
+</body>
+</html>
