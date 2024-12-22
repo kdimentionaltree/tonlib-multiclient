@@ -90,6 +90,16 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const std::string& 
     return tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno);
   }
 
+  if (ton_api_method == "getExtendedAddressInformation") {
+    auto address = request.GetArg("address");
+    auto seqno = stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    if (address.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("address is required", 422);
+    }
+
+    return tonlib_component_.DoRequest(&core::TonlibWorker::getExtendedAddressInformation, address, seqno);
+  }
+
   if (ton_api_method == "getMasterchainInfo") {
     return tonlib_component_.DoRequest(&core::TonlibWorker::getMasterchainInfo);
   }

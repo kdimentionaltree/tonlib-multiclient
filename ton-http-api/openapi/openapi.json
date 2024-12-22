@@ -64,6 +64,64 @@
         ]
       }
     },
+    "/api/v2/getExtendedAddressInformation": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Extended Address Information",
+        "description": "Similar to previous one but tries to parse additional information for known contract types. This method is based on tonlib's function *getAccountState*. For detecting wallets we recommend to use *getWalletInformation*.",
+        "operationId": "get_extended_address_information_getExtendedAddressInformation_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in any form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in any form."
+            },
+            "name": "address",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Masterchain block seqno"
+            },
+            "name": "seqno",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
     "/api/v2/getMasterchainInfo": {
       "get": {
         "tags": [
