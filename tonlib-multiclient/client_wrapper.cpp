@@ -87,6 +87,24 @@ void ClientWrapper::try_init() {
 
 void ClientWrapper::on_inited() {
   inited_ = true;
+  if (config_.sync_tonlib) {
+    td::actor::send_closure(actor_id(this), &ClientWrapper::try_sync);
+  } else {
+    synced_ = true;
+  }
+}
+void ClientWrapper::try_sync() {
+  LOG(INFO) << "try sync tonlib";
+  send_request_function<ton::tonlib_api::sync>(
+    ton::tonlib_api::make_object<tonlib_api::sync>(),
+    [self_id = actor_id(this)](auto res) {
+      if (res.is_ok()) {
+        td::actor::send_closure(self_id, &ClientWrapper::on_synced);
+      }
+  });
+}
+void ClientWrapper::on_synced() {
+  synced_ = true;
 }
 
 void ClientWrapper::on_cb_result(uint64_t id, tonlib_api::object_ptr<tonlib_api::Object> result) {

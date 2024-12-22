@@ -19,7 +19,6 @@ set(TON_HTTP_API_CPP_SOURCE
     tonlib_worker.h
     handler_api_v2.cpp
     handler_api_v2.h
-    openapi/openapi_page.hpp
 )
 
 add_executable(${PROJECT_NAME} ${TON_HTTP_API_CPP_SOURCE})

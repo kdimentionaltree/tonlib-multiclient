@@ -99,7 +99,7 @@ void MultiClientActor::send_callback_request(RequestCallback request) {
 
 void MultiClientActor::start_up() {
   static constexpr double kFirstAlarmAfter = 1.0;
-  static constexpr double kCheckArchivalForFirstTimeAfter = 22.0;
+  static constexpr double kCheckArchivalForFirstTimeAfter = 10.0;
 
   CHECK(std::filesystem::exists(config_.global_config_path));
 
@@ -150,7 +150,6 @@ void MultiClientActor::alarm() {
   check_alive();
 
   if (next_archival_check_.is_in_past()) {
-    LOG(DEBUG) << "Checking archival workers";
     check_archival();
     next_archival_check_ = td::Timestamp::in(kCheckArchivalInterval);
   }

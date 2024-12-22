@@ -6,6 +6,64 @@
     "version": "2.1.0"
   },
   "paths": {
+    "/api/v2/getAddressInformation": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Address Information",
+        "description": "Get basic information about the address: balance, code, data, last_transaction_id.",
+        "operationId": "get_address_information_getAddressInformation_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in any form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in any form."
+            },
+            "name": "address",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Masterchain block seqno"
+            },
+            "name": "seqno",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
     "/api/v2/getMasterchainInfo": {
       "get": {
         "tags": [
@@ -14,6 +72,146 @@
         "summary": "Get Masterchain Info",
         "description": "Get up-to-date masterchain state.",
         "operationId": "get_masterchain_info_getMasterchainInfo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v2/getMasterchainBlockSignatures": {
+      "get": {
+        "tags": [
+          "blocks"
+        ],
+        "summary": "Get Masterchain Block Signatures",
+        "description": "Get up-to-date masterchain state.",
+        "operationId": "get_masterchain_block_signatures_getMasterchainBlockSignatures_get",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Seqno"
+            },
+            "name": "seqno",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v2/lookupBlock": {
+      "get": {
+        "tags": [
+          "blocks"
+        ],
+        "summary": "Lookup Block",
+        "description": "Look up block by either *seqno*, *lt* or *unixtime*.",
+        "operationId": "lookup_block_lookupBlock_get",
+        "parameters": [
+          {
+            "description": "Workchain id to look up block in",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Workchain",
+              "description": "Workchain id to look up block in"
+            },
+            "name": "workchain",
+            "in": "query"
+          },
+          {
+            "description": "Shard id to look up block in",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Shard",
+              "description": "Shard id to look up block in"
+            },
+            "name": "shard",
+            "in": "query"
+          },
+          {
+            "description": "Block's height",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Seqno",
+              "description": "Block's height"
+            },
+            "name": "seqno",
+            "in": "query"
+          },
+          {
+            "description": "Block's logical time",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Lt",
+              "description": "Block's logical time"
+            },
+            "name": "lt",
+            "in": "query"
+          },
+          {
+            "description": "Block's unixtime",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Unixtime",
+              "description": "Block's unixtime"
+            },
+            "name": "unixtime",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",

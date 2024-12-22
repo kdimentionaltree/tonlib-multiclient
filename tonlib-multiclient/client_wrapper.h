@@ -24,6 +24,7 @@ struct ClientConfig {
   std::string blockchain_name = "mainnet";
   bool use_callbacks_for_network = false;
   bool ignore_cache = false;
+  bool sync_tonlib = true;
 };
 
 class ClientWrapper : public td::actor::Actor {
@@ -46,6 +47,8 @@ public:
 private:
   void try_init();
   void on_inited();
+  void try_sync();
+  void on_synced();
 
   void on_cb_result(uint64_t id, ton::tonlib_api::object_ptr<ton::tonlib_api::Object> result);
   void on_cb_error(uint64_t id, ton::tonlib_api::object_ptr<ton::tonlib_api::error> error);
@@ -58,6 +61,7 @@ private:
   std::unordered_map<uint64_t, td::Promise<ton::tonlib_api::object_ptr<ton::tonlib_api::Object>>> tracking_requests_;
 
   bool inited_ = false;
+  bool synced_ = false;
   size_t request_id_ = 100;
 };
 
