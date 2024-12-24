@@ -1,12 +1,45 @@
 #include "tonlib_worker.h"
 
-#include "td/utils/logging.h"
+#include "userver/formats/json.hpp"
 
 namespace ton_http::core {
 
 template <typename T1, typename T2>
 auto value_or_default(const std::optional<T1>& arg, const T2& def) {
   return (arg.has_value() ? arg.value() : (def));
+}
+
+std::string DetectAddressResult::to_json_string() const {
+  using namespace userver::formats::json;
+
+  ValueBuilder builder;
+  {
+    td::StringBuilder sb;
+    sb << address.workchain << ":" <<address.addr.to_hex();
+    builder["raw_address"] = sb.as_cslice().str();
+  }
+  LOG(ERROR) << "111";
+  for (bool bounce : {true, false}) {
+    block::StdAddress b_addr(address);
+    b_addr.bounceable = bounce;
+    std::string field_name = (bounce? "bouncable" : "non_bouncable");
+    builder[field_name]["b64"] = b_addr.rserialize(false);
+    builder[field_name]["b64url"] = b_addr.rserialize(true);
+  }
+  LOG(ERROR) << "222";
+  auto res = ToString(builder.ExtractValue());
+  LOG(ERROR) << "333";
+  return std::move(res);
+}
+
+td::Result<DetectAddressResult> TonlibWorker::detectAddress(const std::string& address) const {
+  auto r_std_address = block::StdAddress::parse(address);
+  if (r_std_address.is_error()) {
+    return r_std_address.move_as_error();
+  }
+  auto std_address = r_std_address.move_as_ok();
+  DetectAddressResult result{std_address, "unknown"};
+  return std::move(result);
 }
 
 td::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> TonlibWorker::getMasterchainInfo() const {

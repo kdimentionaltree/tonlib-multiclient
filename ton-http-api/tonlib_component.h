@@ -23,7 +23,7 @@ public:
   // template<typename Func, typename... Args>
   // auto DoRequest(Func&& func, Args&&... args) -> decltype(auto) {
   //   auto task = userver::utils::Async(task_processor_, "tonlib_request", [this, func, ...capturedArgs = std::forward<Args>(args)] {
-  //     return (this->worker_.*func)(std::forward<decltype(capturedArgs)>(capturedArgs)...);
+  //     return (this->worker_.get().*func)(std::forward<decltype(capturedArgs)>(capturedArgs)...);
   //   });
   //   return task.Get();
   // }
@@ -31,17 +31,17 @@ public:
   template<typename Func, typename... Args>
   auto DoRequest(Func&& func, Args&&... args) -> decltype(auto) {
     auto task = userver::utils::Async(task_processor_, "tonlib_request", [this, func, ...args = std::forward<Args>(args)] {
-      return (this->worker_.*func)(args...);
+      return std::move((this->worker_.*func)(args...));
     });
-    return TonlibWorkerResponse::from_tonlib_result(std::move(task.Get()));
+    return std::move(task.Get());
   }
 
   template<typename Func>
   auto DoRequest(Func&& func) -> decltype(auto) {
     auto task = userver::utils::Async(task_processor_, "tonlib_request", [this, func] {
-      return (this->worker_.*func)();
+      return std::move((this->worker_.*func)());
     });
-    return TonlibWorkerResponse::from_tonlib_result(std::move(task.Get()));
+    return std::move(task.Get());
   }
 
   static userver::yaml_config::Schema GetStaticConfigSchema();

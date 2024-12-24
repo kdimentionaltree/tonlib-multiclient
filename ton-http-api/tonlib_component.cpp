@@ -1,4 +1,6 @@
 #include "tonlib_component.h"
+
+#include "tonlib_postprocessor.h"
 #include "userver/components/component.hpp"
 #include "userver/components/component_context.hpp"
 #include "userver/dynamic_config/storage/component.hpp"

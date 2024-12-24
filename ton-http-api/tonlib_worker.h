@@ -7,12 +7,22 @@
 #include "tonlib-multiclient/request.h"
 
 namespace ton_http::core {
+// new schemas
+struct DetectAddressResult{
+  block::StdAddress address;
+  std::string given_type;
+
+  std::string to_json_string() const;
+};
+
+
+
+// TonlibWorker
 struct TonlibWorkerResponse {
   bool is_ok{false};
   tonlib_api::object_ptr<tonlib_api::Object> result{nullptr};
   std::optional<std::string> result_str{std::nullopt};
   std::optional<td::Status> error{std::nullopt};
-
 
   template<typename T>
   static TonlibWorkerResponse from_tonlib_result(td::Result<T>&& result) {
@@ -25,6 +35,9 @@ struct TonlibWorkerResponse {
       return {true, result.move_as_ok(), std::nullopt, std::nullopt};
     }
   }
+  static TonlibWorkerResponse from_result_string(const std::string& result) {
+    return {false, nullptr, result, std::nullopt};
+  }
   static TonlibWorkerResponse from_error_string(const std::string& error, const int code = 0) {
     return {false, nullptr, std::nullopt, td::Status::Error(code, error)};
   }
@@ -35,6 +48,7 @@ public:
   explicit TonlibWorker(const multiclient::MultiClientConfig& config) : tonlib_(config) {};
   ~TonlibWorker() = default;
 
+  td::Result<DetectAddressResult> detectAddress(const std::string& address) const;
   td::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> getMasterchainInfo() const;
   td::Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType> getMasterchainBlockSignatures(ton::BlockSeqno seqno) const;
   td::Result<tonlib_api::raw_getAccountState::ReturnType> getAddressInformation(std::string address, std::optional<std::int32_t> seqno = std::nullopt) const;

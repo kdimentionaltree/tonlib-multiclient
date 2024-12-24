@@ -165,6 +165,55 @@ std::string GetOpenApiJson() {
         ]
       }
     },
+    "/api/v2/detectAddress": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Detect Address",
+        "description": "Get all possible address forms.",
+        "operationId": "detect_address_detectAddress_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in any form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in any form."
+            },
+            "name": "address",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
     "/api/v2/getMasterchainInfo": {
       "get": {
         "tags": [
