@@ -88,7 +88,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const std::string& 
     }
 
     auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressInformation, address, std::move(res));
   }
 
   if (ton_api_method == "getExtendedAddressInformation") {
@@ -102,6 +102,16 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const std::string& 
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res));
   }
 
+  if (ton_api_method == "getWalletInformation") {
+    auto address = request.GetArg("address");
+    auto seqno = stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    if (address.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("address is required", 422);
+    }
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getExtendedAddressInformation, address, seqno);
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getWalletInformation, address, std::move(res));
+  }
+
   if (ton_api_method == "detectAddress") {
     auto address = request.GetArg("address");
     if (address.empty()) {
@@ -109,7 +119,6 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const std::string& 
     }
     auto res = tonlib_component_.DoRequest(&core::TonlibWorker::detectAddress, address);
     auto res_str = res.move_as_ok().to_json_string();
-    LOG_WARNING() << res_str;
     return core::TonlibWorkerResponse::from_result_string(res_str);
   }
 

@@ -168,7 +168,7 @@ std::string GetOpenApiJson() {
     "/api/v2/detectAddress": {
       "get": {
         "tags": [
-          "accounts"
+          "utils"
         ],
         "summary": "Detect Address",
         "description": "Get all possible address forms.",
@@ -182,6 +182,106 @@ std::string GetOpenApiJson() {
               "title": "Address",
               "description": "Identifier of target TON account in any form."
             },
+            "name": "address",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v2/packAddress": {
+      "get": {
+        "tags": [
+          "utils"
+        ],
+        "summary": "Pack Address",
+        "description": "Convert an address from raw to human-readable format.",
+        "operationId": "pack_address_packAddress_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in raw form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in raw form."
+            },
+            "example": "0:83DFD552E63729B472FCBCC8C45EBCC6691702558B68EC7527E1BA403A0F31A8",
+            "name": "address",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v2/unpackAddress": {
+      "get": {
+        "tags": [
+          "utils"
+        ],
+        "summary": "Unpack Address",
+        "description": "Convert an address from human-readable to raw format.",
+        "operationId": "unpack_address_unpackAddress_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in user-friendly form",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in user-friendly form"
+            },
+            "example": "EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N",
             "name": "address",
             "in": "query"
           }
@@ -474,6 +574,10 @@ std::string GetOpenApiJson() {
     }
   },
   "tags": [
+    {
+      "name": "utils",
+      "description": "Some useful methods for conversion"
+    },
     {
       "name": "accounts",
       "description": "Information about accounts."

@@ -1,5 +1,6 @@
 #pragma once
 #include "tonlib-multiclient/multi_client.h"
+#include "tonlib_postprocessor.h"
 #include "tonlib_worker.h"
 #include "userver/components/component_base.hpp"
 #include "userver/dynamic_config/source.hpp"
@@ -31,23 +32,34 @@ public:
   template<typename Func, typename... Args>
   auto DoRequest(Func&& func, Args&&... args) -> decltype(auto) {
     auto task = userver::utils::Async(task_processor_, "tonlib_request", [this, func, ...args = std::forward<Args>(args)] {
-      return std::move((this->worker_.*func)(args...));
+      return (this->worker_.get()->*func)(args...);
     });
-    return std::move(task.Get());
+    return task.Get();
   }
 
   template<typename Func>
   auto DoRequest(Func&& func) -> decltype(auto) {
     auto task = userver::utils::Async(task_processor_, "tonlib_request", [this, func] {
-      return std::move((this->worker_.*func)());
+      return (this->worker_.get()->*func)();
     });
-    return std::move(task.Get());
+    return task.Get();
+  }
+
+  template<typename Func, typename... Args>
+  auto DoPostprocess(Func&& func, Args&&... args) -> decltype(auto) {
+    return (this->postprocessor_.get()->*func)(std::forward<Args>(args)...);
+  }
+
+  template<typename Func>
+  auto DoPostprocess(Func&& func) -> decltype(auto) {
+    return (this->worker_.get()->*func)();
   }
 
   static userver::yaml_config::Schema GetStaticConfigSchema();
 private:
   userver::dynamic_config::Source config_;
-  TonlibWorker worker_;
+  std::unique_ptr<TonlibWorker> worker_;
+  std::unique_ptr<TonlibPostProcessor> postprocessor_;
   userver::engine::TaskProcessor& task_processor_;
 };
 }

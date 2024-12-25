@@ -12,10 +12,9 @@ struct DetectAddressResult{
   block::StdAddress address;
   std::string given_type;
 
-  std::string to_json_string() const;
+  [[nodiscard]] std::string to_json_string() const;
+  [[nodiscard]] std::string to_raw_form(bool lower=false) const;
 };
-
-
 
 // TonlibWorker
 struct TonlibWorkerResponse {
@@ -36,7 +35,7 @@ struct TonlibWorkerResponse {
     }
   }
   static TonlibWorkerResponse from_result_string(const std::string& result) {
-    return {false, nullptr, result, std::nullopt};
+    return {true, nullptr, result, std::nullopt};
   }
   static TonlibWorkerResponse from_error_string(const std::string& error, const int code = 0) {
     return {false, nullptr, std::nullopt, td::Status::Error(code, error)};
@@ -49,6 +48,8 @@ public:
   ~TonlibWorker() = default;
 
   td::Result<DetectAddressResult> detectAddress(const std::string& address) const;
+  td::Result<std::string> packAddress(const std::string& address) const;
+  td::Result<std::string> unpackAddress(const std::string& address) const;
   td::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> getMasterchainInfo() const;
   td::Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType> getMasterchainBlockSignatures(ton::BlockSeqno seqno) const;
   td::Result<tonlib_api::raw_getAccountState::ReturnType> getAddressInformation(std::string address, std::optional<std::int32_t> seqno = std::nullopt) const;
