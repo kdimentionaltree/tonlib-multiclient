@@ -341,7 +341,7 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(const std::str
   }
 
   auto result = res.move_as_ok();
-  auto state = "\"" + get_address_state(result) + "\"";
+  auto state = get_address_state(result);
   return TonlibWorkerResponse{true, nullptr, "\"" + state + "\"", std::nullopt};
 }
 }  // namespace ton_http::core
