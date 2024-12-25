@@ -176,6 +176,7 @@ static const std::unordered_set<std::string> suspended_jettons{
 "0:f01aee2f16fd5edf09fc9a29ff8b2ece3c95de80e613150e5b6456796b964f88",
 "0:b81b6a61e804bf983ffe708bf8688626d73e63020096fd34c312bef6ca05ce3f"};
 
+// utils
 std::string get_address_state(tonlib_api::object_ptr<tonlib_api::raw_fullAccountState>& state) {
   if (state->code_.empty()) {
     if (state->frozen_hash_.empty()) {
@@ -185,6 +186,77 @@ std::string get_address_state(tonlib_api::object_ptr<tonlib_api::raw_fullAccount
     }
   }
   return "active";
+}
+
+// utils
+template<typename T>
+auto tl_to_json(const T& value) {
+  return userver::formats::json::FromString(td::json_encode<td::string>(td::ToJson(value)));
+}
+
+inline td::Result<std::string> get_hash(const std::string& data) {
+  if (data.empty()) {
+    return td::Status::Error("Empty data");
+  }
+  auto res = vm::std_boc_deserialize(data);
+  if (res.is_error()) { return res.move_as_error(); }
+  return td::base64_encode(res.move_as_ok()->get_hash().as_slice());
+}
+
+inline std::string get_hash_no_error(const std::string& data) {
+  return get_hash(data).move_as_ok();
+}
+
+
+// wallet data parsers
+namespace wallets {
+const std::string wallet_v1_r1 = "te6cckEBAQEARAAAhP8AIN2k8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVEH98Ik=";
+const std::string wallet_v1_r2 = "te6cckEBAQEAUwAAov8AIN0gggFMl7qXMO1E0NcLH+Ck8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVNDieG8=";
+const std::string wallet_v1_r3 = "te6cckEBAQEAXwAAuv8AIN0gggFMl7ohggEznLqxnHGw7UTQ0x/XC//jBOCk8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVLW4bkI=";
+const std::string wallet_v2_r1 = "te6cckEBAQEAVwAAqv8AIN0gggFMl7qXMO1E0NcLH+Ck8mCDCNcYINMf0x8B+CO78mPtRNDTH9P/0VExuvKhA/kBVBBC+RDyovgAApMg10qW0wfUAvsA6NGkyMsfy//J7VShNwu2";
+const std::string wallet_v2_r2 = "te6cckEBAQEAYwAAwv8AIN0gggFMl7ohggEznLqxnHGw7UTQ0x/XC//jBOCk8mCDCNcYINMf0x8B+CO78mPtRNDTH9P/0VExuvKhA/kBVBBC+RDyovgAApMg10qW0wfUAvsA6NGkyMsfy//J7VQETNeh";
+const std::string wallet_v3_r1 = "te6cckEBAQEAYgAAwP8AIN0gggFMl7qXMO1E0NcLH+Ck8mCDCNcYINMf0x/TH/gjE7vyY+1E0NMf0x/T/9FRMrryoVFEuvKiBPkBVBBV+RDyo/gAkyDXSpbTB9QC+wDo0QGkyMsfyx/L/8ntVD++buA=";
+const std::string wallet_v3_r2 = "te6cckEBAQEAcQAA3v8AIN0gggFMl7ohggEznLqxn3Gw7UTQ0x/THzHXC//jBOCk8mCDCNcYINMf0x/TH/gjE7vyY+1E0NMf0x/T/9FRMrryoVFEuvKiBPkBVBBV+RDyo/gAkyDXSpbTB9QC+wDo0QGkyMsfyx/L/8ntVBC9ba0=";
+const std::string wallet_v4_r1 = "te6cckECFQEAAvUAART/APSkE/S88sgLAQIBIAIDAgFIBAUE+PKDCNcYINMf0x/THwL4I7vyY+1E0NMf0x/T//QE0VFDuvKhUVG68qIF+QFUEGT5EPKj+AAkpMjLH1JAyx9SMMv/UhD0AMntVPgPAdMHIcAAn2xRkyDXSpbTB9QC+wDoMOAhwAHjACHAAuMAAcADkTDjDQOkyMsfEssfy/8REhMUA+7QAdDTAwFxsJFb4CHXScEgkVvgAdMfIYIQcGx1Z70ighBibG5jvbAighBkc3RyvbCSXwPgAvpAMCD6RAHIygfL/8nQ7UTQgQFA1yH0BDBcgQEI9ApvoTGzkl8F4ATTP8glghBwbHVnupEx4w0kghBibG5juuMABAYHCAIBIAkKAFAB+gD0BDCCEHBsdWeDHrFwgBhQBcsFJ88WUAP6AvQAEstpyx9SEMs/AFL4J28ighBibG5jgx6xcIAYUAXLBSfPFiT6AhTLahPLH1Iwyz8B+gL0AACSghBkc3Ryuo41BIEBCPRZMO1E0IEBQNcgyAHPFvQAye1UghBkc3Rygx6xcIAYUATLBVjPFiL6AhLLassfyz+UEDRfBOLJgED7AAIBIAsMAFm9JCtvaiaECAoGuQ+gIYRw1AgIR6STfSmRDOaQPp/5g3gSgBt4EBSJhxWfMYQCAVgNDgARuMl+1E0NcLH4AD2ynftRNCBAUDXIfQEMALIygfL/8nQAYEBCPQKb6ExgAgEgDxAAGa3OdqJoQCBrkOuF/8AAGa8d9qJoQBBrkOuFj8AAbtIH+gDU1CL5AAXIygcVy//J0Hd0gBjIywXLAiLPFlAF+gIUy2sSzMzJcfsAyEAUgQEI9FHypwIAbIEBCNcYyFQgJYEBCPRR8qeCEG5vdGVwdIAYyMsFywJQBM8WghAF9eEA+gITy2oSyx/JcfsAAgBygQEI1xgwUgKBAQj0WfKn+CWCEGRzdHJwdIAYyMsFywJQBc8WghAF9eEA+gIUy2oTyx8Syz/Jc/sAAAr0AMntVEap808=";
+const std::string wallet_v4_r2 = "te6cckECFAEAAtQAART/APSkE/S88sgLAQIBIAIDAgFIBAUE+PKDCNcYINMf0x/THwL4I7vyZO1E0NMf0x/T//QE0VFDuvKhUVG68qIF+QFUEGT5EPKj+AAkpMjLH1JAyx9SMMv/UhD0AMntVPgPAdMHIcAAn2xRkyDXSpbTB9QC+wDoMOAhwAHjACHAAuMAAcADkTDjDQOkyMsfEssfy/8QERITAubQAdDTAyFxsJJfBOAi10nBIJJfBOAC0x8hghBwbHVnvSKCEGRzdHK9sJJfBeAD+kAwIPpEAcjKB8v/ydDtRNCBAUDXIfQEMFyBAQj0Cm+hMbOSXwfgBdM/yCWCEHBsdWe6kjgw4w0DghBkc3RyupJfBuMNBgcCASAICQB4AfoA9AQw+CdvIjBQCqEhvvLgUIIQcGx1Z4MesXCAGFAEywUmzxZY+gIZ9ADLaRfLH1Jgyz8gyYBA+wAGAIpQBIEBCPRZMO1E0IEBQNcgyAHPFvQAye1UAXKwjiOCEGRzdHKDHrFwgBhQBcsFUAPPFiP6AhPLassfyz/JgED7AJJfA+ICASAKCwBZvSQrb2omhAgKBrkPoCGEcNQICEekk30pkQzmkD6f+YN4EoAbeBAUiYcVnzGEAgFYDA0AEbjJftRNDXCx+AA9sp37UTQgQFA1yH0BDACyMoHy//J0AGBAQj0Cm+hMYAIBIA4PABmtznaiaEAga5Drhf/AABmvHfaiaEAQa5DrhY/AAG7SB/oA1NQi+QAFyMoHFcv/ydB3dIAYyMsFywIizxZQBfoCFMtrEszMyXP7AMhAFIEBCPRR8qcCAHCBAQjXGPoA0z/IVCBHgQEI9FHyp4IQbm90ZXB0gBjIywXLAlAGzxZQBPoCFMtqEssfyz/Jc/sAAgBsgQEI1xj6ANM/MFIkgQEI9Fnyp4IQZHN0cnB0gBjIywXLAlAFzxZQA/oCE8tqyx8Syz/Jc/sAAAr0AMntVGliJeU=";
+const std::string wallet_v5_r1 = "te6cckECFAEAAoEAART/APSkE/S88sgLAQIBIAIDAgFIBAUBAvIOAtzQINdJwSCRW49jINcLHyCCEGV4dG69IYIQc2ludL2wkl8D4IIQZXh0brqOtIAg1yEB0HTXIfpAMPpE+Cj6RDBYvZFb4O1E0IEBQdch9AWDB/QOb6ExkTDhgEDXIXB/2zzgMSDXSYECgLmRMOBw4hAPAgEgBgcCASAICQAZvl8PaiaECAoOuQ+gLAIBbgoLAgFIDA0AGa3OdqJoQCDrkOuF/8AAGa8d9qJoQBDrkOuFj8AAF7Ml+1E0HHXIdcLH4AARsmL7UTQ1woAgAR4g1wsfghBzaWduuvLgin8PAeaO8O2i7fshgwjXIgKDCNcjIIAg1yHTH9Mf0x/tRNDSANMfINMf0//XCgAK+QFAzPkQmiiUXwrbMeHywIffArNQB7Dy0IRRJbry4IVQNrry4Ib4I7vy0IgikvgA3gGkf8jKAMsfAc8Wye1UIJL4D95w2zzYEAP27aLt+wL0BCFukmwhjkwCIdc5MHCUIccAs44tAdcoIHYeQ2wg10nACPLgkyDXSsAC8uCTINcdBscSwgBSMLDy0InXTNc5MAGk6GwShAe78uCT10rAAPLgk+1V4tIAAcAAkVvg69csCBQgkXCWAdcsCBwS4lIQseMPINdKERITAJYB+kAB+kT4KPpEMFi68uCR7UTQgQFB1xj0BQSdf8jKAEAEgwf0U/Lgi44UA4MH9Fvy4Iwi1woAIW4Bs7Dy0JDiyFADzxYS9ADJ7VQAcjDXLAgkji0h8uCS0gDtRNDSAFETuvLQj1RQMJExnAGBAUDXIdcKAPLgjuLIygBYzxbJ7VST8sCN4gAQk1vbMeHXTNCon9ZI";
+const std::string nominator_pool_v1 = "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";
+
+td::Result<> parse_wallet_seqno(userver::formats::json::ValueBuilder& builder, td::Ref<vm::Cell>& data) {
+  vm::CellSlice cs{vm::NoVm(), data};
+  builder["seqno"] = cs.fetch_long(32);
+  return td::Status::OK();
+}
+
+td::Result<> parse_wallet_v3(userver::formats::json::ValueBuilder& builder, td::Ref<vm::Cell>& data) {
+  vm::CellSlice cs{vm::NoVm(), data};
+  builder["seqno"] = cs.fetch_long(32);
+  builder["wallet_id"] = cs.fetch_long(32);
+  return td::Status::OK();
+}
+
+td::Result<> parse_wallet_v5(userver::formats::json::ValueBuilder& builder, td::Ref<vm::Cell>& data) {
+  vm::CellSlice cs{vm::NoVm(), data};
+  bool is_signature_allowed = cs.fetch_long(1);
+  builder["seqno"] = cs.fetch_long(32);
+  builder["wallet_id"] = cs.fetch_long(32);
+  builder["is_signature_allowed"] = is_signature_allowed;
+  return td::Status::OK();
+}
+
+static const std::map<std::string, std::pair<std::string, std::function<td::Result<>(userver::formats::json::ValueBuilder&, td::Ref<vm::Cell>&)>>> wallet_data_parsers{
+{"oM/CxIruFqJx8s/AtzgtgXVs7LEBfQd/qqs7tgL2how=", {"wallet v1 r1", parse_wallet_seqno}},
+{"1JAvzJ+tdGmPqONTIgpo2g3PcuMryy657gQhfBfTBiw=", {"wallet v1 r2", parse_wallet_seqno}},
+{"WHzHie/xyE9G7DeX5F/ICaFP9a4k8eDHpqmcydyQYf8=", {"wallet v1 r3", parse_wallet_seqno}},
+{"XJpeaMEI4YchoHxC+ZVr+zmtd+xtYktgxXbsiO7mUyk=", {"wallet v2 r1", parse_wallet_seqno}},
+{"/pUw0yQ4Uwg+8u8LTCkIwKv2+hwx6iQ6rKpb+MfXU/E=", {"wallet v2 r2", parse_wallet_seqno}},
+{"thBBpYp5gLlG6PueGY48kE0keZ/6NldOpCUcQaVm9YE=", {"wallet v3 r1", parse_wallet_v3}},
+{"hNr6RJ+Ypph3ibojI1gHK8D3bcRSQAKl0JGLmnXS1Zk=", {"wallet v3 r2", parse_wallet_v3}},
+{"ZN1UgFUixb6KnbWc6gEFzPDQh4bKeb64y3nogKjXMi0=", {"wallet v4 r1", parse_wallet_v3}},
+{"/rX/aCDi/w2Ug+fg1iyBfYRniftK5YDIeIZtlZ2r1cA=", {"wallet v4 r2", parse_wallet_v3}},
+{"89fKU0k97trCizgZhqhJQDy6w9LFhHea8IEGWvCsS5M=", {"wallet v5 beta", parse_wallet_v5}},
+{"IINLe3KxEhR+Gy+0V7hOdNGjDwT3N9T2KmaOlVLSty8=", {"wallet v5 v1", parse_wallet_v5}},
+};
 }
 
 
@@ -225,12 +297,51 @@ TonlibWorkerResponse TonlibPostProcessor::process_getWalletInformation(const std
   auto result = res.move_as_ok();
   ValueBuilder builder;
   builder["wallet"] = false;
-  builder["balance"] = (result->balance_ < 0 ? 0 : result->balance_);
+  builder["balance"] = std::to_string(result->balance_ < 0 ? 0 : result->balance_);
   builder["account_state"] = get_address_state(result);
-
+  if (result->last_transaction_id_) {
+    builder["last_transaction_id"] = tl_to_json(result->last_transaction_id_);
+  }
+  if (!result->code_.empty()) {
+    auto code_hash_res = get_hash(result->code_);
+    if (code_hash_res.is_ok()) {
+      builder["wallet"] = true;
+      auto code_hash = code_hash_res.move_as_ok();
+      auto parser_ = wallets::wallet_data_parsers.find(code_hash);
+      if (parser_ != wallets::wallet_data_parsers.end()) {
+        auto data_cell = vm::std_boc_deserialize(result->data_);
+        if (data_cell.is_error()) {
+          return TonlibWorkerResponse::from_error_string(data_cell.move_as_error().to_string());
+        }
+        auto data = data_cell.move_as_ok();
+        builder["wallet_type"] = parser_->second.first;
+        auto parse_result = parser_->second.second(builder, data);
+        if (parse_result.is_error()) {
+          return TonlibWorkerResponse::from_error_string(parse_result.move_as_error().to_string());
+        }
+      }
+    }
+  }
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
 }
 TonlibWorkerResponse TonlibPostProcessor::process_getAddressBalance(const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res) const {
+  using namespace userver::formats::json;
+  if (res.is_error()) {
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+  }
+
+  auto result = res.move_as_ok();
+  auto balance =  std::to_string(result->balance_ < 0 ? 0 : result->balance_) + "\"";
+  return TonlibWorkerResponse{true, nullptr, "\"" +balance + "\"", std::nullopt};
 }
 TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res) const {
+  using namespace userver::formats::json;
+  if (res.is_error()) {
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+  }
+
+  auto result = res.move_as_ok();
+  auto state = "\"" + get_address_state(result) + "\"";
+  return TonlibWorkerResponse{true, nullptr, "\"" + state + "\"", std::nullopt};
 }
 }  // namespace ton_http::core

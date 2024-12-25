@@ -108,8 +108,28 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const std::string& 
     if (address.empty()) {
       return core::TonlibWorkerResponse::from_error_string("address is required", 422);
     }
-    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getExtendedAddressInformation, address, seqno);
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno);
     return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getWalletInformation, address, std::move(res));
+  }
+
+  if (ton_api_method == "getAddressBalance") {
+    auto address = request.GetArg("address");
+    auto seqno = stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    if (address.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("address is required", 422);
+    }
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno);
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressBalance, address, std::move(res));
+  }
+
+  if (ton_api_method == "getAddressState") {
+    auto address = request.GetArg("address");
+    auto seqno = stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    if (address.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("address is required", 422);
+    }
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno);
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressState, address, std::move(res));
   }
 
   if (ton_api_method == "detectAddress") {

@@ -165,6 +165,180 @@ std::string GetOpenApiJson() {
         ]
       }
     },
+    "/api/v2/getWalletInformation": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Wallet Information",
+        "description": "Retrieve wallet information. This method parses contract state and currently supports more wallet types than getExtendedAddressInformation: simple wallet, standart wallet, v3 wallet, v4 wallet.",
+        "operationId": "get_wallet_information_getWalletInformation_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in any form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in any form."
+            },
+            "name": "address",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Masterchain block seqno"
+            },
+            "name": "seqno",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v2/getAddressBalance": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Address Balance",
+        "description": "Get balance (in nanotons) of a given address.",
+        "operationId": "get_address_balance_getAddressBalance_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in any form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in any form."
+            },
+            "name": "address",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Masterchain block seqno"
+            },
+            "name": "seqno",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/api/v2/getAddressState": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Address",
+        "description": "Get state of a given address. State can be either *unitialized*, *active* or *frozen*.",
+        "operationId": "get_address_getAddressState_get",
+        "parameters": [
+          {
+            "description": "Identifier of target TON account in any form.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address",
+              "description": "Identifier of target TON account in any form."
+            },
+            "name": "address",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Masterchain block seqno"
+            },
+            "name": "seqno",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
     "/api/v2/detectAddress": {
       "get": {
         "tags": [
