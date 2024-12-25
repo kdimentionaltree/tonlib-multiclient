@@ -331,7 +331,7 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressBalance(const std::s
   }
 
   auto result = res.move_as_ok();
-  auto balance =  std::to_string(result->balance_ < 0 ? 0 : result->balance_) + "\"";
+  auto balance =  std::to_string(result->balance_ < 0 ? 0 : result->balance_);
   return TonlibWorkerResponse{true, nullptr, "\"" +balance + "\"", std::nullopt};
 }
 TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res) const {
