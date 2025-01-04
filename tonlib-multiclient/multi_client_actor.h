@@ -93,14 +93,15 @@ private:
   std::vector<size_t> select_workers(const RequestParameters& options) const;
 
   void check_alive();
-  void on_alive_checked(size_t worker_index, std::optional<int32_t> last_mc_seqno);
+  void on_alive_checked(size_t worker_index, std::optional<int32_t> last_mc_seqno, bool first_archival_check_done = false);
 
-  void check_archival();
+  void check_archival(std::optional<size_t> check_worker_index = std::nullopt);
   void on_archival_checked(size_t worker_index, bool is_archival);
 
   const MultiClientActorConfig config_;
   std::shared_ptr<ResponseCallback> callback_;
   std::vector<WorkerInfo> workers_;
+  bool first_archival_check_done_ = false;
   td::Timestamp next_archival_check_ = td::Timestamp::now();
   uint64_t json_request_id_ = 11;
 };
@@ -109,7 +110,7 @@ template <typename T>
 void MultiClientActor::send_request(Request<T> request, td::Promise<typename T::ReturnType> promise) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error("No workers available"));
+    promise.set_error(td::Status::Error("no workers available (" + request.parameters.to_string() + ")"));
     return;
   }
 
@@ -123,7 +124,7 @@ template <typename T>
 void MultiClientActor::send_request_function(RequestFunction<T> request, td::Promise<typename T::ReturnType> promise) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error("No workers available"));
+    promise.set_error(td::Status::Error("no workers available (" + request.parameters.to_string() + ")"));
     return;
   }
 

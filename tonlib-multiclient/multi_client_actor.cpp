@@ -69,7 +69,7 @@ T get_random_index(T from, T to) {
 void MultiClientActor::send_request_json(RequestJson request, td::Promise<std::string> promise) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error("No workers available"));
+    promise.set_error(td::Status::Error("no workers available (" + request.parameters.to_string() + ")"));
     return;
   }
   auto multi_promise = PromiseSuccessAny<std::string>(std::move(promise));
@@ -87,7 +87,8 @@ void MultiClientActor::send_callback_request(RequestCallback request) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
     callback_->on_error(
-        kUndefinedClientId, request.request_id, tonlib_api::make_object<tonlib_api::error>(400, "No workers available")
+        kUndefinedClientId, request.request_id,
+        tonlib_api::make_object<tonlib_api::error>(400, "no workers available (" + request.parameters.to_string() + ")")
     );
     return;
   }
@@ -99,7 +100,7 @@ void MultiClientActor::send_callback_request(RequestCallback request) {
 
 void MultiClientActor::start_up() {
   static constexpr double kFirstAlarmAfter = 1.0;
-  static constexpr double kCheckArchivalForFirstTimeAfter = 10.0;
+  static constexpr double kCheckArchivalForFirstTimeAfter = 5.0;
 
   CHECK(std::filesystem::exists(config_.global_config_path));
 
@@ -144,10 +145,11 @@ void MultiClientActor::start_up() {
 
 void MultiClientActor::alarm() {
   static constexpr double kDefaultAlarmInterval = 1.0;
-  static constexpr double kCheckArchivalInterval = 10 * 60.0;
+  static constexpr double kCheckArchivalInterval = 2 * 60.0;
 
   LOG(DEBUG) << "Checking alive workers";
   check_alive();
+  first_archival_check_done_ = true;
 
   if (next_archival_check_.is_in_past()) {
     check_archival();
@@ -185,19 +187,20 @@ void MultiClientActor::check_alive() {
     send_worker_request<ton::tonlib_api::blocks_getMasterchainInfo>(
         worker_index,
         ton::tonlib_api::blocks_getMasterchainInfo(),
-        [self_id = actor_id(this), worker_index](auto result) {
+        [self_id = actor_id(this), worker_index, check_done = first_archival_check_done_](auto result) {
           td::actor::send_closure(
               self_id,
               &MultiClientActor::on_alive_checked,
               worker_index,
-              result.is_ok() ? std::make_optional(result.ok()->last_->seqno_) : std::nullopt
+              result.is_ok() ? std::make_optional(result.ok()->last_->seqno_) : std::nullopt,
+              check_done
           );
         }
     );
   }
 }
 
-void MultiClientActor::on_alive_checked(size_t worker_index, std::optional<int32_t> last_mc_seqno) {
+void MultiClientActor::on_alive_checked(size_t worker_index, std::optional<int32_t> last_mc_seqno, bool first_archival_check_done) {
   static constexpr double kRetryInterval = 10.0;
   static constexpr int32_t kUndefinedLastMcSeqno = -1;
 
@@ -216,9 +219,14 @@ void MultiClientActor::on_alive_checked(size_t worker_index, std::optional<int32
   } else {
     worker.check_retry_after = td::Timestamp::in(kRetryInterval);
   }
+
+  if (is_alive && !first_archival_check_done) {
+    LOG(INFO) << "First archival check for #" << worker_index << " liteserver";
+    check_archival(worker_index);
+  }
 }
 
-void MultiClientActor::check_archival() {
+void MultiClientActor::check_archival(std::optional<size_t> check_worker_index) {
   static constexpr int32_t kBlockWorkchain = ton::masterchainId;
   static constexpr int64_t kBlockShard = ton::shardIdAll;
   static constexpr int32_t kBlockSeqno = 3;
@@ -229,6 +237,9 @@ void MultiClientActor::check_archival() {
 
   for (size_t worker_index = 0; worker_index < workers_.size(); worker_index++) {
     if (!workers_[worker_index].is_alive) {
+      continue;
+    }
+    if (check_worker_index.has_value() && check_worker_index.value() != worker_index) {
       continue;
     }
 

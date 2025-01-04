@@ -8,12 +8,17 @@
 
 namespace ton_http::core {
 // new schemas
-struct DetectAddressResult{
+struct DetectAddressResult {
   block::StdAddress address;
   std::string given_type;
 
   [[nodiscard]] std::string to_json_string() const;
   [[nodiscard]] std::string to_raw_form(bool lower=false) const;
+};
+
+struct DetectHashResult {
+  std::string hash;
+  [[nodiscard]] std::string to_json_string() const;
 };
 
 // TonlibWorker
@@ -50,12 +55,83 @@ public:
   td::Result<DetectAddressResult> detectAddress(const std::string& address) const;
   td::Result<std::string> packAddress(const std::string& address) const;
   td::Result<std::string> unpackAddress(const std::string& address) const;
-  td::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> getMasterchainInfo() const;
-  td::Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType> getMasterchainBlockSignatures(ton::BlockSeqno seqno) const;
-  td::Result<tonlib_api::raw_getAccountState::ReturnType> getAddressInformation(std::string address, std::optional<std::int32_t> seqno = std::nullopt) const;
-  td::Result<tonlib_api::getAccountState::ReturnType> getExtendedAddressInformation(std::string address, std::optional<std::int32_t> seqno = std::nullopt) const;
-  td::Result<tonlib_api::blocks_lookupBlock::ReturnType> lookupBlock(const ton::WorkchainId& workchain, const ton::ShardId& shard, const std::optional<ton::BlockSeqno>& seqno = std::nullopt,
-    const std::optional<ton::LogicalTime>& lt = std::nullopt, const std::optional<ton::UnixTime>& unixtime = std::nullopt) const;
+  td::Result<DetectHashResult> detectHash(const std::string& hash) const;
+  td::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType>
+    getMasterchainInfo() const;
+  td::Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType>
+    getMasterchainBlockSignatures(ton::BlockSeqno seqno) const;
+  td::Result<tonlib_api::raw_getAccountState::ReturnType>
+    getAddressInformation(std::string address, std::optional<std::int32_t> seqno = std::nullopt) const;
+  td::Result<tonlib_api::getAccountState::ReturnType>
+    getExtendedAddressInformation(std::string address, std::optional<std::int32_t> seqno = std::nullopt) const;
+  td::Result<tonlib_api::blocks_lookupBlock::ReturnType> lookupBlock(const ton::WorkchainId& workchain,
+    const ton::ShardId& shard, const std::optional<ton::BlockSeqno>& seqno = std::nullopt,
+    const std::optional<ton::LogicalTime>& lt = std::nullopt,
+    const std::optional<ton::UnixTime>& unixtime = std::nullopt) const;
+  td::Result<tonlib_api::blocks_getShardBlockProof::ReturnType> getShardBlockProof(const ton::WorkchainId& workchain,
+    const ton::ShardId& shard, const ton::BlockSeqno& seqno,
+    const std::optional<ton::BlockSeqno>& from_seqno = std::nullopt) const;
+  td::Result<tonlib_api::blocks_getShards::ReturnType> getShards(std::optional<ton::BlockSeqno> mc_seqno = std::nullopt,
+    std::optional<ton::LogicalTime> lt = std::nullopt, std::optional<ton::UnixTime> unixtime = std::nullopt) const;
+  td::Result<tonlib_api::blocks_getBlockHeader::ReturnType> getBlockHeader(
+      const ton::WorkchainId& workchain,
+      const ton::ShardId& shard,
+      const ton::BlockSeqno& seqno,
+      const std::string& root_hash = "",
+      const std::string& file_hash = ""
+  ) const;
+  td::Result<tonlib_api::blocks_getOutMsgQueueSizes::ReturnType> getOutMsgQueueSizes() const;
+  td::Result<tonlib_api::blocks_getTransactions::ReturnType> raw_getBlockTransactions(const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
+    size_t count, tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId>&& after = nullptr, std::optional<bool> archival = std::nullopt) const;
+  td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> raw_getBlockTransactionsExt(const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
+    size_t count, tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId>&& after = nullptr, std::optional<bool> archival = std::nullopt) const;
+  td::Result<tonlib_api::raw_getTransactions::ReturnType> raw_getTransactions(
+    const std::string& account_address,
+    const ton::LogicalTime& from_transaction_lt,
+    const std::string& from_transaction_hash,
+    const std::optional<bool> archival = std::nullopt) const;
+  td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> raw_getTransactionsV2(
+    const std::string& account_address,
+    const ton::LogicalTime& from_transaction_lt,
+    const std::string& from_transaction_hash,
+    const size_t count,
+    const bool try_decode_messages,
+    const std::optional<bool> archival = std::nullopt) const;
+
+  td::Result<tonlib_api::blocks_getTransactions::ReturnType> getBlockTransactions(
+    const ton::WorkchainId& workchain,
+    const ton::ShardId& shard,
+    const ton::BlockSeqno& seqno,
+    const size_t count = 40,
+    const std::string& root_hash = "",
+    const std::string& file_hash = "",
+    const std::optional<ton::LogicalTime>& after_lt = std::nullopt,
+    const std::string after_hash = "",
+    std::optional<bool> archival = std::nullopt
+  ) const;
+
+  td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> getBlockTransactionsExt(
+    const ton::WorkchainId& workchain,
+    const ton::ShardId& shard,
+    const ton::BlockSeqno& seqno,
+    const size_t count = 40,
+    const std::string& root_hash = "",
+    const std::string& file_hash = "",
+    const std::optional<ton::LogicalTime>& after_lt = std::nullopt,
+    const std::string after_hash = "",
+    std::optional<bool> archival = std::nullopt
+  ) const;
+
+  td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> getTransactions(
+    const std::string& account_address,
+    std::optional<ton::LogicalTime> from_transaction_lt,
+    std::string from_transaction_hash,
+    ton::LogicalTime to_transaction_lt = 0,
+    size_t count = 10,
+    size_t chunk_size = 30,
+    bool try_decode_messages = true,
+    std::optional<bool> archival = std::nullopt
+  ) const;
 private:
   multiclient::MultiClient tonlib_;
 

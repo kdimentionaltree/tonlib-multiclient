@@ -1,5 +1,8 @@
 #include "tonlib_postprocessor.h"
+
+#include "td/utils/overloaded.h"
 #include "userver/formats/json.hpp"
+#include "crypto/common/bitstring.h"
 
 namespace ton_http::core {
 
@@ -334,7 +337,9 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressBalance(const std::s
   auto balance =  std::to_string(result->balance_ < 0 ? 0 : result->balance_);
   return TonlibWorkerResponse{true, nullptr, "\"" +balance + "\"", std::nullopt};
 }
-TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res) const {
+TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(
+    const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res
+) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
     return TonlibWorkerResponse::from_tonlib_result(std::move(res));
@@ -343,5 +348,111 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(const std::str
   auto result = res.move_as_ok();
   auto state = get_address_state(result);
   return TonlibWorkerResponse{true, nullptr, "\"" + state + "\"", std::nullopt};
+}
+TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactions(
+    td::Result<tonlib_api::blocks_getTransactions::ReturnType>&& res
+) const {
+  using namespace userver::formats::json;
+  if (res.is_error()) {
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+  }
+
+  auto result = res.move_as_ok();
+  auto workchain_str = std::to_string(result->id_->workchain_);
+
+  ValueBuilder builder(FromString(td::json_encode<td::string>(td::ToJson(result))));
+  for (size_t i = 0; i < result->transactions_.size(); ++i) {
+    builder["transactions"][i]["account"] = workchain_str + ":" + td::hex_encode(result->transactions_[i]->account_);
+  }
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+}
+TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactionsExt(
+    td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType>&& res
+) const {
+  using namespace userver::formats::json;
+  if (res.is_error()) {
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+  }
+
+  auto result = res.move_as_ok();
+  auto workchain_str = std::to_string(result->id_->workchain_);
+
+  ValueBuilder builder(FromString(td::json_encode<td::string>(td::ToJson(result))));
+  for (size_t i = 0; i < result->transactions_.size(); ++i) {
+    auto r_std_address = block::StdAddress::parse(result->transactions_[i]->address_->account_address_);
+    if (r_std_address.is_ok()) {
+      const auto std_address = r_std_address.move_as_ok();
+      builder["transactions"][i]["account"] =
+          std::to_string(std_address.workchain) + ":" + td::hex_encode(std_address.addr.as_slice().str());
+    }
+  }
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+}
+TonlibWorkerResponse TonlibPostProcessor::process_getTransactions(
+    td::Result<tonlib_api::raw_getTransactionsV2::ReturnType>&& res, bool v2_schema
+) const {
+  using namespace userver::formats::json;
+  if (res.is_error()) {
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+  }
+  auto result = res.move_as_ok();
+
+  ValueBuilder builder(FromString(td::json_encode<td::string>(td::ToJson(result))));
+
+  auto process_message_fn = [&](const tonlib_api::object_ptr<tonlib_api::raw_message>& msg, ValueBuilder& builder) {
+    builder["source"] = msg->source_->account_address_;
+    builder["destination"] = msg->destination_->account_address_;
+
+    auto success = tonlib_api::downcast_call(*msg->msg_data_,
+      td::overloaded(
+        [&](tonlib_api::msg_dataRaw &data) {
+          auto r_body = vm::std_boc_deserialize(data.body_);
+          if (r_body.is_ok()) {
+            auto body = r_body.move_as_ok();
+            vm::CellSlice cs = vm::load_cell_slice(body);
+            auto body_bs = cs.fetch_bitstring(cs.size());
+            auto body_bin = body_bs->to_binary();
+            for (auto i = body_bin.length() % 8; i % 8 != 0; ++i) {
+              body_bin += "0";
+            }
+            auto body_slice = td::Slice(body_bin);
+            unsigned char buff[128];
+            td::bitstring::parse_bitstring_binary_literal(td::BitPtr{buff}, sizeof(buff) * 8, body_slice.begin(), body_slice.end());
+            auto body_hex = td::bitstring::bits_to_hex(td::ConstBitPtr{buff}, body_bin.length());
+            auto r_body_hex = td::hex_decode(body_hex);
+            if (r_body_hex.is_ok()) {
+              builder["message"] = td::base64_encode(r_body_hex.move_as_ok());
+            } else {
+              builder["message_decode_error"] = r_body_hex.move_as_error_prefix("Failed to decode hex: ").to_string();
+            }
+          } else {
+            builder["message_decode_error"] = r_body.move_as_error_prefix("Failed to decode message: ").to_string();
+          }
+        },
+        [&](tonlib_api::msg_dataText &data) {
+          builder["message"] = data.text_;
+        },
+        [&](auto &x) { LOG(WARNING) << "failed to decode type " << x.get_id(); }));
+    if (!success) {
+      LOG(WARNING) << "error in downcast_call";
+    }
+  };
+  for (size_t i = 0; i < result->transactions_.size(); ++i) {
+    auto &tx = result->transactions_[i];
+    auto& in_msg = tx->in_msg_;
+    if (in_msg) {
+      auto local_builder = builder["transactions"][i]["in_msg"];
+      process_message_fn(in_msg, local_builder);
+    }
+    for (size_t j = 0; j < tx->out_msgs_.size(); ++j) {
+      auto local_builder = builder["transactions"][i]["out_msgs"][j];
+      process_message_fn(tx->out_msgs_[j], local_builder);
+    }
+  }
+
+  if (v2_schema) {
+    return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+  }
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"]), std::nullopt};
 }
 }  // namespace ton_http::core

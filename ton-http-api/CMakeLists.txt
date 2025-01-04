@@ -36,8 +36,6 @@ target_include_directories(${PROJECT_NAME}
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_link_libraries(${PROJECT_NAME} userver::core tonlib::multiclient)
-# target_link_options(ton-http-api-cpp PUBLIC -rdynamic)
+target_link_options(ton-http-api-cpp PUBLIC -rdynamic)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-
-

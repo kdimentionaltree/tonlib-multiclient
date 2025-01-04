@@ -29,8 +29,9 @@ public:
       std::unique_lock<std::mutex> lock(ctrl->mutex);
       auto pending_count = ctrl->pending_count.fetch_sub(1, std::memory_order_relaxed);
       if (!res.is_ok()) {
-        if (pending_count <= 0) {
-          ctrl->promise.set_error(td::Status::Error("All promises failed"));
+        auto error = res.move_as_error();
+        if (pending_count <= 1) {
+          ctrl->promise.set_error(std::move(error));
         }
         return;
       }

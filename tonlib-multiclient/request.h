@@ -22,7 +22,7 @@ struct RequestParameters {
 
   bool are_valid() const {
     if (mode == RequestMode::Single) {
-      return !lite_server_indexes->empty() && lite_server_indexes->size() == 1;
+      return !lite_server_indexes.has_value() || !lite_server_indexes->empty() && lite_server_indexes->size() == 1;
     }
 
     if (mode == RequestMode::Multiple) {
@@ -31,6 +31,28 @@ struct RequestParameters {
     }
 
     return true;
+  }
+
+  std::string to_string() const {
+    std::stringstream ss;
+    ss << "archival=" << archival;
+    if (clients_number.has_value()) {
+      ss << " clients_number=" << clients_number.value();
+    }
+    switch (mode) {
+      case RequestMode::Single:
+        ss << " mode=Single";
+        break;
+      case RequestMode::Broadcast:
+        ss << " mode=Broadcast";
+        break;
+      case RequestMode::Multiple:
+        ss << " mode=Multiple";
+        break;
+      default:
+        ss << " mode=Unknown";
+    }
+    return ss.str();
   }
 };
 

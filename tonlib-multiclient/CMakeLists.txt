@@ -18,3 +18,5 @@ target_link_libraries(
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 add_dependencies(${PROJECT_NAME} tl_generate_common)
+
+install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
