@@ -41,7 +41,7 @@ std::string DetectHashResult::to_json_string() const {
   using namespace userver::formats::json;
 
   ValueBuilder builder;
-  builder["b64"] = td::statubase64_encode(hash);
+  builder["b64"] = td::base64_encode(hash);
   builder["b64url"] = td::base64url_encode(hash);
   builder["hex"] = td::hex_encode(hash);
   auto res = ToString(builder.ExtractValue());
