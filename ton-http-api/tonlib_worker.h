@@ -21,6 +21,12 @@ struct DetectHashResult {
   [[nodiscard]] std::string to_json_string() const;
 };
 
+struct ConsensusBlockResult {
+  std::int32_t seqno;
+  std::time_t timestamp;
+  [[nodiscard]] std::string to_json_string() const;
+};
+
 // TonlibWorker
 struct TonlibWorkerResponse {
   bool is_ok{false};
@@ -52,6 +58,7 @@ public:
   explicit TonlibWorker(const multiclient::MultiClientConfig& config) : tonlib_(config) {};
   ~TonlibWorker() = default;
 
+  td::Result<ConsensusBlockResult> getConsensusBlock() const;
   td::Result<DetectAddressResult> detectAddress(const std::string& address) const;
   td::Result<std::string> packAddress(const std::string& address) const;
   td::Result<std::string> unpackAddress(const std::string& address) const;
@@ -81,6 +88,10 @@ public:
       const std::string& file_hash = ""
   ) const;
   td::Result<tonlib_api::blocks_getOutMsgQueueSizes::ReturnType> getOutMsgQueueSizes() const;
+
+  td::Result<tonlib_api::getConfigParam::ReturnType> getConfigParam(const std::int32_t& param, std::optional<ton::BlockSeqno> seqno = std::nullopt) const;
+  td::Result<tonlib_api::getConfigParam::ReturnType> getConfigAll(std::optional<ton::BlockSeqno> seqno = std::nullopt) const;
+
   td::Result<tonlib_api::blocks_getTransactions::ReturnType> raw_getBlockTransactions(const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
     size_t count, tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId>&& after = nullptr, std::optional<bool> archival = std::nullopt) const;
   td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> raw_getBlockTransactionsExt(const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,

@@ -39,6 +39,7 @@ public:
   td::Result<std::string> send_request_json(RequestJson req) const;
   void send_callback_request(RequestCallback req) const;
 
+  td::Result<std::int32_t> get_consensus_block() const;
 private:
   const MultiClientConfig config_;
   std::shared_ptr<td::actor::Scheduler> scheduler_;

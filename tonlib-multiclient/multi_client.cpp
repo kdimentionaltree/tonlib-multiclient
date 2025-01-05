@@ -52,5 +52,19 @@ void MultiClient::send_callback_request(RequestCallback req) const {
     td::actor::send_closure(client_.get(), &MultiClientActor::send_callback_request, std::move(req));
   });
 }
+td::Result<std::int32_t> MultiClient::get_consensus_block() const {
+  std::promise<td::Result<std::int32_t>> request_promise;
+  auto request_future = request_promise.get_future();
+
+  auto promise = td::Promise<std::int32_t>([p = std::move(request_promise)](auto result) mutable {
+    p.set_value(std::move(result));
+  });
+
+  scheduler_->run_in_context_external([this, p = std::move(promise)]() mutable {
+    td::actor::send_closure(client_.get(), &MultiClientActor::get_consensus_block, std::move(p));
+  });
+
+  return request_future.get();
+}
 
 }  // namespace multiclient

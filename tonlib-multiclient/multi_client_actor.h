@@ -47,7 +47,7 @@ public:
   size_t worker_count() const {
     return workers_.size();
   }
-
+  void get_consensus_block(td::Promise<std::int32_t>&& promise);
 private:
   struct WorkerInfo {
     td::actor::ActorOwn<ClientWrapper> id;

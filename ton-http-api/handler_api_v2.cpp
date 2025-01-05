@@ -144,6 +144,14 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getMasterchainInfo);
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res));
   }
+  if (ton_api_method == "getconsensusblock") {
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getConsensusBlock);
+    if (res.is_error()) {
+      return core::TonlibWorkerResponse::from_error_string(res.move_as_error().to_string());
+    }
+    auto res_str = res.move_as_ok().to_json_string();
+    return core::TonlibWorkerResponse::from_result_string(res_str);
+  }
 
   if (ton_api_method == "getmasterchainblocksignatures") {
     auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
@@ -339,6 +347,21 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       archival
     );
     return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), ton_api_method == "gettransactionsv2");
+  }
+
+  if (ton_api_method == "getconfigparam") {
+    auto config_id = utils::stringToInt<std::int32_t>(request.GetArg("config_id"));
+    auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    if (!config_id.has_value()) {
+      return core::TonlibWorkerResponse::from_error_string("config_id is required");
+    }
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getConfigParam, config_id.value(), seqno);
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res));
+  }
+  if (ton_api_method == "getconfigall") {
+    auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::getConfigAll, seqno);
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res));
   }
 
   return {false, nullptr, std::nullopt,

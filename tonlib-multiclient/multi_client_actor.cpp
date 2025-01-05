@@ -262,6 +262,19 @@ void MultiClientActor::on_archival_checked(size_t worker_index, bool is_archival
   LOG(DEBUG) << "LS #" << worker_index << " archival: " << is_archival;
   workers_[worker_index].is_archival = is_archival;
 }
+void MultiClientActor::get_consensus_block(td::Promise<std::int32_t>&& promise) {
+  std::int32_t consensus_block = 0;
+  for (const auto& worker : workers_) {
+    if (worker.is_alive && worker.last_mc_seqno > consensus_block) {
+      consensus_block = worker.last_mc_seqno;
+    }
+  }
+  if (consensus_block == 0) {
+    promise.set_error(td::Status::Error(500, "no workers alive"));
+    return;
+  }
+  promise.set_result(consensus_block);
+}
 
 std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& options) const {
   std::vector<size_t> result;

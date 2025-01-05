@@ -47,7 +47,23 @@ std::string DetectHashResult::to_json_string() const {
   auto res = ToString(builder.ExtractValue());
   return std::move(res);
 }
+std::string ConsensusBlockResult::to_json_string() const {
+  using namespace userver::formats::json;
 
+  ValueBuilder builder;
+  builder["consensus_block"] = seqno;
+  builder["timestamp"] = timestamp;
+  auto res = ToString(builder.ExtractValue());
+  return std::move(res);
+}
+
+td::Result<ConsensusBlockResult> TonlibWorker::getConsensusBlock() const {
+  auto res = tonlib_.get_consensus_block();
+  if (res.is_error()) {
+    return res.move_as_error();
+  }
+  return ConsensusBlockResult{ res.move_as_ok(), std::time(nullptr) };
+}
 td::Result<DetectAddressResult> TonlibWorker::detectAddress(const std::string& address) const {
   auto r_std_address = block::StdAddress::parse(address);
   if (r_std_address.is_error()) {
@@ -362,6 +378,95 @@ td::Result<tonlib_api::blocks_getOutMsgQueueSizes::ReturnType> TonlibWorker::get
   };
   auto result = send_request_function(std::move(request), true);
   return std::move(result);
+}
+td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigParam(
+    const std::int32_t& param, std::optional<ton::BlockSeqno> seqno
+) const {
+  tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
+  if (seqno.has_value()) {
+    auto res = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
+    if (!res.is_ok()) {
+      return res.move_as_error();
+    }
+    with_block = res.move_as_ok();
+  }
+  if (!with_block) {
+    auto request = multiclient::RequestFunction<tonlib_api::getConfigParam>{
+        .parameters = {.mode = multiclient::RequestMode::Single},
+        .request_creator =
+            [param_ = param] {
+              return tonlib_api::make_object<tonlib_api::getConfigParam>(param_, 0);
+            }
+    };
+    auto result = send_request_function(std::move(request), true);
+    return std::move(result);
+  } else {
+    auto request = multiclient::RequestFunction<tonlib_api::withBlock>{
+        .parameters = {.mode = multiclient::RequestMode::Single},
+        .request_creator =
+            [param_ = param,
+             workchain_ = with_block->workchain_,
+             shard_ = with_block->shard_,
+             seqno_ = with_block->seqno_,
+             root_hash_ = with_block->root_hash_,
+             file_hash_ = with_block->file_hash_] {
+              return tonlib_api::make_object<tonlib_api::withBlock>(
+                  tonlib_api::make_object<tonlib_api::ton_blockIdExt>(
+                      workchain_, shard_, seqno_, root_hash_, file_hash_
+                  ),
+                  tonlib_api::make_object<tonlib_api::getConfigParam>(param_, 0)
+              );
+            }
+    };
+    auto result = send_request_function(std::move(request), true);
+    if (result.is_error()) {
+      return result.move_as_error();
+    }
+    return ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok());
+  }
+}
+td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigAll(std::optional<ton::BlockSeqno> seqno) const {
+  tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
+  if (seqno.has_value()) {
+    auto res = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
+    if (!res.is_ok()) {
+      return res.move_as_error();
+    }
+    with_block = res.move_as_ok();
+  }
+  if (!with_block) {
+    auto request = multiclient::RequestFunction<tonlib_api::getConfigAll>{
+      .parameters = {.mode = multiclient::RequestMode::Single},
+      .request_creator =
+          [] {
+            return tonlib_api::make_object<tonlib_api::getConfigAll>(0);
+      }
+    };
+    auto result = send_request_function(std::move(request), true);
+    return std::move(result);
+  } else {
+    auto request = multiclient::RequestFunction<tonlib_api::withBlock>{
+      .parameters = {.mode = multiclient::RequestMode::Single},
+      .request_creator =
+          [workchain_ = with_block->workchain_,
+          shard_ = with_block->shard_,
+          seqno_ = with_block->seqno_,
+          root_hash_ = with_block->root_hash_,
+          file_hash_ = with_block->file_hash_] {
+            return tonlib_api::make_object<tonlib_api::withBlock>(
+                tonlib_api::make_object<tonlib_api::ton_blockIdExt>(
+                    workchain_, shard_, seqno_, root_hash_, file_hash_
+                ),
+                tonlib_api::make_object<tonlib_api::getConfigAll>(0)
+            );
+      }
+    };
+    auto result = send_request_function(std::move(request), true);
+    if (result.is_error()) {
+      return result.move_as_error();
+    }
+    return ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok());
+  }
 }
 td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::raw_getBlockTransactions(
     const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,

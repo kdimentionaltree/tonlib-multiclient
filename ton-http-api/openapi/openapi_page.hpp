@@ -28,9 +28,11 @@ std::string GetOpenApiPage() {
             docExpansion:"list",
             tryItOutEnabled:true,
             showMutatedRequest:false,
+            showExtensions: true,
+            showCommonExtensions: true,
             presets: [
                 SwaggerUIBundle.presets.apis,
-                SwaggerUIStandalonePreset
+                SwaggerUIBundle.SwaggerUIStandalonePreset
             ],
             syntaxHighlight: {"activate":true,"theme":"agate"}
         });
@@ -50,7 +52,16 @@ std::string GetOpenApiJson() {
   },
   "servers": [
     {
-      "url": "/api/v2"
+      "url": "/",
+      "description": "Current"
+    },
+    {
+      "url": "https://toncenter.com",
+      "description": "TON Center API v2 - mainnet"
+    },
+    {
+      "url": "https://testnet.toncenter.com",
+      "description": "TON Center API v2 - testnet"
     }
   ],
   "paths": {
