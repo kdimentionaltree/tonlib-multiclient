@@ -5,6 +5,7 @@
 #include "auto/tl/tonlib_api_json.h"
 #include "td/utils/JsonBuilder.h"
 #include "tonlib-multiclient/request.h"
+#include "userver/engine/future.hpp"
 
 namespace ton_http::core {
 // new schemas
@@ -148,27 +149,27 @@ private:
 
   template<typename T>
   td::Result<typename T::ReturnType> send_request(multiclient::Request<T>&& request, bool retry_archival = false) const {
-    auto result = tonlib_.send_request(request);
+    auto result = tonlib_.send_request<T, userver::engine::Promise>(request);
     if (!retry_archival || result.is_ok()) {
       return std::move(result);
     }
 
     // retry request with archival
     request.parameters.archival = true;
-    result = tonlib_.send_request(request);
+    result = tonlib_.send_request<T, userver::engine::Promise>(request);
     return std::move(result);
   }
 
   template<typename T>
   td::Result<typename T::ReturnType> send_request_function(multiclient::RequestFunction<T>&& request, bool retry_archival = false) const {
-    auto result = tonlib_.send_request_function(request);
+    auto result = tonlib_.send_request_function<T, userver::engine::Promise>(request);
     if (!retry_archival || result.is_ok()) {
       return std::move(result);
     }
 
     // retry request with archival
     request.parameters.archival = true;
-    result = tonlib_.send_request_function(request);
+    result = tonlib_.send_request_function<T, userver::engine::Promise>(request);
     return std::move(result);
   }
 };

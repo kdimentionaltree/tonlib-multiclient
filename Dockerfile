@@ -26,4 +26,4 @@ COPY CMakeLists.txt /app/CMakeLists.txt
 
 WORKDIR /app/build
 RUN cmake -DCMAKE_BUILD_TYPE=Release -DPORTABLE=1 .. && make -j$(nproc) && make install
-ENTRYPOINT [ "/bin/bash" ]
+ENTRYPOINT [ "ton-http-api-cpp" ]

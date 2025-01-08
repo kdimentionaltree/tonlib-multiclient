@@ -30,10 +30,10 @@ public:
   explicit MultiClient(MultiClientConfig config, std::unique_ptr<ResponseCallback> callback = nullptr);
   ~MultiClient();
 
-  template <typename T>
+  template <typename T, template<typename> typename P = std::promise>
   td::Result<typename T::ReturnType> send_request(Request<T> req) const;
 
-  template <typename T>
+  template <typename T, template<typename> typename P = std::promise>
   td::Result<typename T::ReturnType> send_request_function(RequestFunction<T> req) const;
 
   td::Result<std::string> send_request_json(RequestJson req) const;
@@ -49,11 +49,11 @@ private:
 
 using MultiClientPtr = std::unique_ptr<MultiClient>;
 
-template <typename T>
+template <typename T, template<typename> typename P>
 td::Result<typename T::ReturnType> MultiClient::send_request(Request<T> req) const {
   using ReturnType = typename T::ReturnType;
 
-  std::promise<td::Result<ReturnType>> request_promise;
+  P<td::Result<ReturnType>> request_promise;
   auto request_future = request_promise.get_future();
 
   auto promise = td::Promise<ReturnType>([p = std::move(request_promise)](auto result) mutable {
@@ -67,11 +67,11 @@ td::Result<typename T::ReturnType> MultiClient::send_request(Request<T> req) con
   return request_future.get();
 }
 
-template <typename T>
+template <typename T, template<typename> typename P>
 td::Result<typename T::ReturnType> MultiClient::send_request_function(RequestFunction<T> req) const {
   using ReturnType = typename T::ReturnType;
 
-  std::promise<td::Result<ReturnType>> request_promise;
+  P<td::Result<ReturnType>> request_promise;
   auto request_future = request_promise.get_future();
 
   auto promise = td::Promise<ReturnType>([p = std::move(request_promise)](auto result) mutable {

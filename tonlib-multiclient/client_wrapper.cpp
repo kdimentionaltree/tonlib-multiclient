@@ -80,6 +80,8 @@ void ClientWrapper::try_init() {
       [self_id = actor_id(this)](auto res) {
         if (res.is_ok()) {
           td::actor::send_closure(self_id, &ClientWrapper::on_inited);
+        } else {
+          LOG(ERROR) << res.move_as_error_prefix("failed to init client: ");
         }
       }
   );
