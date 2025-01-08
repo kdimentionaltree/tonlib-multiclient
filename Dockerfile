@@ -1,4 +1,4 @@
-FROM ubuntu:24.04 as builder
+FROM ubuntu:24.04
 RUN DEBIAN_FRONTEND=noninteractive apt update -y \
     && apt install -y wget curl build-essential cmake clang openssl  \
     libssl-dev zlib1g-dev gperf wget git ninja-build libsodium-dev libmicrohttpd-dev liblz4-dev  \

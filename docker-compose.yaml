@@ -1,0 +1,17 @@
+services:
+  http-api-cpp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: --config /run/secrets/static-config
+    ports:
+      - 8877:8877
+    restart: unless-stopped
+    secrets:
+      - ton-global-config
+      - static-config
+secrets:
+  ton-global-config:
+    file: private/private-config.json
+  static-config:
+    file: private/static_config.yaml
