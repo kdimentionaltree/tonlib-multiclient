@@ -1,0 +1,31 @@
+components_manager:
+  task_processors:
+    main-task-processor:
+      worker_threads: 16
+    fs-task-processor:
+      worker_threads: 2
+    tonlib-task-processor:
+      thread_name: tonlib_thread
+      worker_threads: 16
+  default_task_processor: main-task-processor
+  components:
+    server:
+      listener:
+        port: 8877
+        task_processor: main-task-processor
+    logging:
+      fs-task-processor: fs-task-processor
+      loggers:
+        default:
+          file_path: '@stdout'
+          level: info
+          overflow_behavior: discard
+    tonlib:
+      global_config: /run/secrets/ton-global-config
+      keystore: /tmp/keystore/
+      threads: 16
+      task_processor: tonlib-task-processor
+    handler-api-v2:
+      path: /api/v2/{ton_api_method}
+      method: GET,POST
+      task_processor: main-task-processor

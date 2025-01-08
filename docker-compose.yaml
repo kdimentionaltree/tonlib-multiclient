@@ -14,4 +14,4 @@ secrets:
   ton-global-config:
     file: private/private-config.json
   static-config:
-    file: private/static_config.yaml
+    file: config/static_config_compose.yaml
