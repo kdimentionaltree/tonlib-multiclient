@@ -388,8 +388,9 @@ TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactionsExt(
   }
   return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
 }
+
 TonlibWorkerResponse TonlibPostProcessor::process_getTransactions(
-    td::Result<tonlib_api::raw_getTransactionsV2::ReturnType>&& res, bool v2_schema
+    td::Result<tonlib_api::raw_getTransactionsV2::ReturnType>&& res, bool v2_schema, bool unwrap_single_transaction
 ) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
@@ -452,6 +453,9 @@ TonlibWorkerResponse TonlibPostProcessor::process_getTransactions(
 
   if (v2_schema) {
     return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+  }
+  if (unwrap_single_transaction && result->transactions_.size() == 1) {
+    return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"][0]), std::nullopt};
   }
   return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"]), std::nullopt};
 }

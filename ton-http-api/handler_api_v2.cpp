@@ -346,7 +346,44 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       try_decode_messages,
       archival
     );
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), ton_api_method == "gettransactionsv2");
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), ton_api_method == "gettransactionsv2", false);
+  }
+
+  if (ton_api_method == "trylocatetx" || ton_api_method == "trylocateresulttx") {
+    auto source = request.GetArg("source");
+    auto destination = request.GetArg("destination");
+    auto created_lt = utils::stringToInt<ton::LogicalTime>(request.GetArg("created_lt"));
+
+    if (source.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("source is required", 422);
+    }
+    if (destination.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("destination is required", 422);
+    }
+    if (!created_lt.has_value()) {
+      return core::TonlibWorkerResponse::from_error_string("created_lt is required", 422);
+    }
+
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::tryLocateTransactionByIncomingMessage, source, destination, created_lt.value());
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), false, true);
+  }
+  if (ton_api_method == "trylocatesourcetx") {
+    auto source = request.GetArg("source");
+    auto destination = request.GetArg("destination");
+    auto created_lt = utils::stringToInt<ton::LogicalTime>(request.GetArg("created_lt"));
+
+    if (source.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("source is required", 422);
+    }
+    if (destination.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("destination is required", 422);
+    }
+    if (!created_lt.has_value()) {
+      return core::TonlibWorkerResponse::from_error_string("created_lt is required", 422);
+    }
+
+    auto res = tonlib_component_.DoRequest(&core::TonlibWorker::tryLocateTransactionByOutgoingMessage, source, destination, created_lt.value());
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), false, true);
   }
 
   if (ton_api_method == "getconfigparam") {

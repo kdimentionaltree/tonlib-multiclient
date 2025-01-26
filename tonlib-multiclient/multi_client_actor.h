@@ -110,7 +110,7 @@ template <typename T>
 void MultiClientActor::send_request(Request<T> request, td::Promise<typename T::ReturnType> promise) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error("no workers available (" + request.parameters.to_string() + ")"));
+    promise.set_error(td::Status::Error(-3, "no workers available (" + request.parameters.to_string() + ")"));
     return;
   }
 
@@ -124,7 +124,7 @@ template <typename T>
 void MultiClientActor::send_request_function(RequestFunction<T> request, td::Promise<typename T::ReturnType> promise) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error("no workers available (" + request.parameters.to_string() + ")"));
+    promise.set_error(td::Status::Error(-3, "no workers available (" + request.parameters.to_string() + ")"));
     return;
   }
 

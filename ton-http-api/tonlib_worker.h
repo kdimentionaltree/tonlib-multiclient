@@ -144,6 +144,16 @@ public:
     bool try_decode_messages = true,
     std::optional<bool> archival = std::nullopt
   ) const;
+
+  td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> tryLocateTransactionByIncomingMessage(
+    const std::string& source,
+    const std::string& destination,
+    ton::LogicalTime created_lt) const;
+  td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> tryLocateTransactionByOutgoingMessage(
+      const std::string& source,
+      const std::string& destination,
+      ton::LogicalTime created_lt) const;
+
 private:
   multiclient::MultiClient tonlib_;
 
@@ -166,10 +176,18 @@ private:
     if (!retry_archival || result.is_ok()) {
       return std::move(result);
     }
-
+    auto error = result.move_as_error();
     // retry request with archival
     request.parameters.archival = true;
     result = tonlib_.send_request_function<T, userver::engine::Promise>(request);
+    if (result.is_error()) {
+      auto error_archival = result.move_as_error();
+      LOG(WARNING) << error_archival.code() << " " << error_archival.message();
+      if (error_archival.code() == -3) {
+        return std::move(error);
+      }
+      return std::move(error_archival);
+    }
     return std::move(result);
   }
 };

@@ -69,7 +69,7 @@ T get_random_index(T from, T to) {
 void MultiClientActor::send_request_json(RequestJson request, td::Promise<std::string> promise) {
   auto worker_indices = select_workers(request.parameters);
   if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error("no workers available (" + request.parameters.to_string() + ")"));
+    promise.set_error(td::Status::Error(-3, "no workers available (" + request.parameters.to_string() + ")"));
     return;
   }
   auto multi_promise = PromiseSuccessAny<std::string>(std::move(promise));
@@ -88,7 +88,7 @@ void MultiClientActor::send_callback_request(RequestCallback request) {
   if (worker_indices.empty()) {
     callback_->on_error(
         kUndefinedClientId, request.request_id,
-        tonlib_api::make_object<tonlib_api::error>(400, "no workers available (" + request.parameters.to_string() + ")")
+        tonlib_api::make_object<tonlib_api::error>(-3, "no workers available (" + request.parameters.to_string() + ")")
     );
     return;
   }

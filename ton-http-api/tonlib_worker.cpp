@@ -776,7 +776,9 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTrans
   tonlib_api::object_ptr<tonlib_api::raw_transactions> txs = tonlib_api::make_object<tonlib_api::raw_transactions>();
   while (!reach_lt && tx_count < count) {
     size_t local_chunk_size = (count - tx_count > chunk_size ? chunk_size : count - tx_count);
-    auto r_local = raw_getTransactionsV2(account_address, current_lt, current_hash, local_chunk_size, try_decode_messages, archival);
+    auto r_local = raw_getTransactionsV2(
+        account_address, current_lt, current_hash, local_chunk_size, try_decode_messages, archival
+    );
     if (r_local.is_error()) {
       return r_local.move_as_error();
     }
@@ -800,7 +802,11 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTrans
     if (current_lt == 0) {
       reach_lt = true;
     }
-    std::copy(std::move_iterator(local->transactions_.begin()), std::move_iterator(local->transactions_.end()), std::back_inserter(txs->transactions_));
+    std::copy(
+        std::move_iterator(local->transactions_.begin()),
+        std::move_iterator(local->transactions_.end()),
+        std::back_inserter(txs->transactions_)
+    );
     if (local->previous_transaction_id_) {
       txs->previous_transaction_id_ = std::move(local->previous_transaction_id_);
     }
@@ -809,5 +815,167 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTrans
     txs->transactions_.resize(tx_count);
   }
   return std::move(txs);
+}
+td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocateTransactionByIncomingMessage(
+    const std::string& source, const std::string& destination, ton::LogicalTime created_lt
+) const {
+  auto r_src_addr = block::StdAddress::parse(source);
+  if (r_src_addr.is_error()) {
+    return r_src_addr.move_as_error_prefix("failed to parse source: ");
+  }
+  auto src = r_src_addr.move_as_ok();
+
+  auto r_dest_addr = block::StdAddress::parse(destination);
+  if (r_dest_addr.is_error()) {
+    return r_dest_addr.move_as_error_prefix("failed to parse destination: ");
+  }
+  auto dest = r_dest_addr.move_as_ok();
+
+  auto workchain = dest.workchain;
+  auto r_shards = getShards(std::nullopt, created_lt, std::nullopt);
+  if (r_shards.is_error()) {
+    return r_shards.move_as_error_prefix("failed to get shards at create_lt: ");
+  }
+  auto shards = r_shards.move_as_ok();
+  for (auto& shard : shards->shards_) {
+    auto shard_id = shard->shard_;
+    for (auto i = 0; i < 3; ++i) {
+      auto lt = created_lt + 1000000 * i;
+      auto r_block = lookupBlock(workchain, shard_id, std::nullopt, lt, std::nullopt);
+      if (r_block.is_error()) {
+        td::StringBuilder sb;
+        sb << "failed to lookup block with lt " << lt << ": ";
+        return r_block.move_as_error_prefix(sb.as_cslice().str());
+      }
+      auto block = r_block.move_as_ok();
+
+      constexpr size_t tx_count = 40;
+      auto r_txs = getBlockTransactions(
+          block->workchain_, block->shard_, block->seqno_, tx_count, block->root_hash_, block->file_hash_
+      );
+      if (r_txs.is_error()) {
+        td::StringBuilder sb;
+        sb << "failed to get transactions for block (" << block->workchain_ << ", " << block->shard_ << ", "
+           << block->seqno_ << "): ";
+        return r_txs.move_as_error_prefix(sb.as_cslice().str());
+      }
+      auto blk_txs = r_txs.move_as_ok();
+
+      tonlib_api::object_ptr<tonlib_api::blocks_shortTxId> candidate = nullptr;
+      size_t tx_found = 0;
+      for (auto& tx : blk_txs->transactions_) {
+        auto tx_addr_str = std::to_string(block->workchain_) + ":" + td::hex_encode(tx->account_);
+        auto tx_addr = block::StdAddress::parse(tx_addr_str).move_as_ok();
+        if (dest.addr == tx_addr.addr && (candidate == nullptr || candidate->lt_ < tx->lt_)) {
+          ++tx_found;
+          candidate = std::move(tx);
+        }
+      }
+      if (candidate != nullptr) {
+        constexpr size_t min_tx_found = 10;
+        auto r_candidate_txs =
+            getTransactions(destination, candidate->lt_, candidate->hash_, std::max(tx_found, min_tx_found));
+        if (r_txs.is_error()) {
+          return r_txs.move_as_error_prefix("failed to get candidate transactions: ");
+        }
+        auto candidate_txs = r_candidate_txs.move_as_ok();
+        for (auto & candidate_tx : candidate_txs->transactions_) {
+          auto& in_msg = candidate_tx->in_msg_;
+          if (in_msg && in_msg->source_ && !in_msg->source_->account_address_.empty()) {
+            auto tx_src_addr = block::StdAddress::parse(in_msg->source_->account_address_).move_as_ok();
+            if (src.workchain == tx_src_addr.workchain && src.addr == tx_src_addr.addr && in_msg->created_lt_ == created_lt) {
+              std::vector<tonlib_api::object_ptr<tonlib_api::raw_transaction>> tx_vec;
+              tx_vec.emplace_back(std::move(candidate_tx));
+              auto prev_tx = tonlib_api::make_object<tonlib_api::internal_transactionId>(
+                0, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+              );
+              return tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx));
+            }
+          }
+        }
+      }
+    }
+  }
+  return td::Status::Error(404, "transaction was not found");
+}
+td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocateTransactionByOutgoingMessage(
+    const std::string& source, const std::string& destination, ton::LogicalTime created_lt
+) const {
+  auto r_src_addr = block::StdAddress::parse(source);
+  if (r_src_addr.is_error()) {
+    return r_src_addr.move_as_error_prefix("failed to parse source: ");
+  }
+  auto src = r_src_addr.move_as_ok();
+
+  auto r_dest_addr = block::StdAddress::parse(destination);
+  if (r_dest_addr.is_error()) {
+    return r_dest_addr.move_as_error_prefix("failed to parse destination: ");
+  }
+  auto dest = r_dest_addr.move_as_ok();
+
+  auto workchain = src.workchain;
+  auto r_shards = getShards(std::nullopt, created_lt, std::nullopt);
+  if (r_shards.is_error()) {
+    return r_shards.move_as_error_prefix("failed to get shards at create_lt: ");
+  }
+  auto shards = r_shards.move_as_ok();
+  for (auto& shard : shards->shards_) {
+    auto shard_id = shard->shard_;
+    auto r_block = lookupBlock(workchain, shard_id, std::nullopt, created_lt, std::nullopt);
+    if (r_block.is_error()) {
+      td::StringBuilder sb;
+      sb << "failed to lookup block with lt " << created_lt << ": ";
+      return r_block.move_as_error_prefix(sb.as_cslice().str());
+    }
+    auto block = r_block.move_as_ok();
+
+    constexpr size_t tx_count = 40;
+    auto r_txs = getBlockTransactions(
+        block->workchain_, block->shard_, block->seqno_, tx_count, block->root_hash_, block->file_hash_
+    );
+    if (r_txs.is_error()) {
+      td::StringBuilder sb;
+      sb << "failed to get transactions for block (" << block->workchain_ << ", " << block->shard_ << ", "
+         << block->seqno_ << "): ";
+      return r_txs.move_as_error_prefix(sb.as_cslice().str());
+    }
+    auto blk_txs = r_txs.move_as_ok();
+
+    tonlib_api::object_ptr<tonlib_api::blocks_shortTxId> candidate = nullptr;
+    size_t tx_found = 0;
+    for (auto& tx : blk_txs->transactions_) {
+      auto tx_addr_str = std::to_string(block->workchain_) + ":" + td::hex_encode(tx->account_);
+      auto tx_addr = block::StdAddress::parse(tx_addr_str).move_as_ok();
+      if (src.addr == tx_addr.addr && (candidate == nullptr || candidate->lt_ < tx->lt_)) {
+        ++tx_found;
+        candidate = std::move(tx);
+      }
+    }
+    if (candidate != nullptr) {
+      constexpr size_t min_tx_found = 10;
+      auto r_candidate_txs =
+          getTransactions(source, candidate->lt_, candidate->hash_, std::max(tx_found, min_tx_found));
+      if (r_txs.is_error()) {
+        return r_txs.move_as_error_prefix("failed to get candidate transactions: ");
+      }
+      auto candidate_txs = r_candidate_txs.move_as_ok();
+      for (auto & candidate_tx : candidate_txs->transactions_) {
+        for (auto& out_msg : candidate_tx->out_msgs_) {
+          if (out_msg && out_msg->destination_ && !out_msg->destination_->account_address_.empty()) {
+            auto tx_dest_addr = block::StdAddress::parse(out_msg->destination_->account_address_).move_as_ok();
+            if (dest.workchain == tx_dest_addr.workchain && dest.addr == tx_dest_addr.addr && out_msg->created_lt_ == created_lt) {
+              std::vector<tonlib_api::object_ptr<tonlib_api::raw_transaction>> tx_vec;
+              tx_vec.emplace_back(std::move(candidate_tx));
+              auto prev_tx = tonlib_api::make_object<tonlib_api::internal_transactionId>(
+                0, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+              );
+              return tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx));
+            }
+          }
+        }
+      }
+    }
+  }
+  return td::Status::Error(404, "transaction was not found");
 }
 }  // namespace ton_http::core
