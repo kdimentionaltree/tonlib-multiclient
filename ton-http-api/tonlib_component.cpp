@@ -19,8 +19,9 @@ TonlibComponent::TonlibComponent(
     worker_(std::make_unique<TonlibWorker>(multiclient::MultiClientConfig{
         .global_config_path = config["global_config"].As<std::string>(),
         .key_store_root = config["keystore"].As<std::string>(),
+        .blockchain_name = "",
+        .reset_key_store = false,
         .scheduler_threads = config["threads"].As<std::size_t>(),
-        .blockchain_name = ""
     })),
     task_processor_(context.GetTaskProcessor(config["task_processor"].As<std::string>())) {
 }
