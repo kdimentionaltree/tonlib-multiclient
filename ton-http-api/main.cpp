@@ -12,6 +12,7 @@ int main(int argc, char* argv[]) {
 
   auto component_list = userver::components::MinimalServerComponentList();
   component_list.Append<ton_http::core::TonlibComponent>();
+  component_list.Append<userver::server::handlers::ServerMonitor>();
   component_list.Append<ton_http::handlers::ApiV2Handler>();
   return userver::utils::DaemonMain(argc, argv, component_list);
 }
