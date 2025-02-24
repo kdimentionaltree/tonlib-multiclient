@@ -959,15 +959,16 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocat
         return r_txs.move_as_error_prefix("failed to get candidate transactions: ");
       }
       auto candidate_txs = r_candidate_txs.move_as_ok();
-      for (auto & candidate_tx : candidate_txs->transactions_) {
+      for (auto& candidate_tx : candidate_txs->transactions_) {
         for (auto& out_msg : candidate_tx->out_msgs_) {
           if (out_msg && out_msg->destination_ && !out_msg->destination_->account_address_.empty()) {
             auto tx_dest_addr = block::StdAddress::parse(out_msg->destination_->account_address_).move_as_ok();
-            if (dest.workchain == tx_dest_addr.workchain && dest.addr == tx_dest_addr.addr && out_msg->created_lt_ == created_lt) {
+            if (dest.workchain == tx_dest_addr.workchain && dest.addr == tx_dest_addr.addr &&
+                out_msg->created_lt_ == created_lt) {
               std::vector<tonlib_api::object_ptr<tonlib_api::raw_transaction>> tx_vec;
               tx_vec.emplace_back(std::move(candidate_tx));
               auto prev_tx = tonlib_api::make_object<tonlib_api::internal_transactionId>(
-                0, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                  0, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
               );
               return tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx));
             }
@@ -977,5 +978,37 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocat
     }
   }
   return td::Status::Error(404, "transaction was not found");
+}
+td::Result<tonlib_api::raw_sendMessage::ReturnType> TonlibWorker::raw_sendMessage(const std::string& boc) const {
+  auto r_boc = td::base64_decode(boc);
+  if (r_boc.is_error()) {
+    return r_boc.move_as_error();
+  }
+  auto boc_bytes = r_boc.move_as_ok();
+  auto request = multiclient::RequestFunction<tonlib_api::raw_sendMessage>{
+    .parameters = {.mode=multiclient::RequestMode::Multiple, .clients_number = 5},
+    .request_creator = [boc_bytes]() {
+      return tonlib_api::make_object<tonlib_api::raw_sendMessage>(boc_bytes);
+    }
+  };
+  auto result = send_request_function(std::move(request), false);
+  return std::move(result);
+}
+td::Result<tonlib_api::raw_sendMessageReturnHash::ReturnType> TonlibWorker::raw_sendMessageReturnHash(
+    const std::string& boc
+) const {
+  auto r_boc = td::base64_decode(boc);
+  if (r_boc.is_error()) {
+    return r_boc.move_as_error();
+  }
+  auto boc_bytes = r_boc.move_as_ok();
+  auto request = multiclient::RequestFunction<tonlib_api::raw_sendMessageReturnHash>{
+    .parameters = {.mode=multiclient::RequestMode::Multiple, .clients_number = 5},
+    .request_creator = [boc_bytes]() {
+      return tonlib_api::make_object<tonlib_api::raw_sendMessageReturnHash>(boc_bytes);
+    }
+  };
+  auto result = send_request_function(std::move(request), false);
+  return std::move(result);
 }
 }  // namespace ton_http::core

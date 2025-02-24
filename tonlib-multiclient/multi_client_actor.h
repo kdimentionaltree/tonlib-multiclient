@@ -48,6 +48,10 @@ public:
     return workers_.size();
   }
   void get_consensus_block(td::Promise<std::int32_t>&& promise);
+
+  void select_workers(const RequestParameters& params, td::Promise<std::vector<size_t>>&& promise) {
+    auto workers = select_workers(params);
+  }
 private:
   struct WorkerInfo {
     td::actor::ActorOwn<ClientWrapper> id;

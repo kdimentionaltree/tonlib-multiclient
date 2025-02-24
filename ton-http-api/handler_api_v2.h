@@ -15,7 +15,6 @@ struct TonlibApiRequest {
   }
   void SetArg(const std::string& name, const std::string& value) {
     args.insert_or_assign(name, value);
-    return;
   }
 };
 

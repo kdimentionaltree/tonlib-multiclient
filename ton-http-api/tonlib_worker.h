@@ -154,6 +154,11 @@ public:
       const std::string& destination,
       ton::LogicalTime created_lt) const;
 
+  td::Result<tonlib_api::raw_sendMessage::ReturnType> raw_sendMessage(
+    const std::string& boc) const;
+  td::Result<tonlib_api::raw_sendMessageReturnHash::ReturnType> raw_sendMessageReturnHash(
+    const std::string& boc) const;
+
 private:
   multiclient::MultiClient tonlib_;
 
