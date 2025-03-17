@@ -20,7 +20,7 @@ namespace multiclient {
 struct MultiClientActorConfig {
   std::filesystem::path global_config_path;
   std::optional<std::filesystem::path> key_store_root;
-  std::string blockchain_name = "mainnet";
+  std::string blockchain_name = "";
   bool reset_key_store = false;
 
   size_t max_consecutive_alive_check_errors = 10;
@@ -49,9 +49,11 @@ public:
   }
   void get_consensus_block(td::Promise<std::int32_t>&& promise);
 
-  void select_workers(const RequestParameters& params, td::Promise<std::vector<size_t>>&& promise) {
-    auto workers = select_workers(params);
+  void get_session(const RequestParameters& params, SessionPtr&& session, td::Promise<SessionPtr>&& promise) {
+    auto r_session = get_session_impl(params, session);
+    promise.set_result(std::move(r_session));
   }
+
 private:
   struct WorkerInfo {
     td::actor::ActorOwn<ClientWrapper> id;
@@ -94,10 +96,13 @@ private:
     );
   }
 
+  td::Result<SessionPtr> get_session_impl(const RequestParameters& options, SessionPtr session) const;
   std::vector<size_t> select_workers(const RequestParameters& options) const;
 
   void check_alive();
-  void on_alive_checked(size_t worker_index, std::optional<int32_t> last_mc_seqno, bool first_archival_check_done = false);
+  void on_alive_checked(
+      size_t worker_index, std::optional<int32_t> last_mc_seqno, bool first_archival_check_done = false
+  );
 
   void check_archival(std::optional<size_t> check_worker_index = std::nullopt);
   void on_archival_checked(size_t worker_index, bool is_archival);

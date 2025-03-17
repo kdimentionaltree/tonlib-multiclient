@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include "session.h"
 #include "auto/tl/tonlib_api.h"
 
 namespace multiclient {
@@ -62,6 +63,7 @@ struct Request {
 
   RequestParameters parameters;
   CreateTonlibRequestFunc request_creator;
+  SessionPtr session = nullptr;
 };
 
 // Prefer using `Request` over `RequestFunction` whenever possible.
@@ -77,6 +79,7 @@ struct RequestFunction {
 
   RequestParameters parameters;
   CreateTonlibRequestFunc request_creator;
+  SessionPtr session = nullptr;
 };
 
 struct RequestCallback {
@@ -85,11 +88,13 @@ struct RequestCallback {
   RequestParameters parameters;
   CreateTonlibCallbackRequestFunc request_creator;
   size_t request_id = 999;
+  SessionPtr session = nullptr;
 };
 
 struct RequestJson {
   RequestParameters parameters;
   std::string request;
+  SessionPtr session = nullptr;
 };
 
 }  // namespace multiclient

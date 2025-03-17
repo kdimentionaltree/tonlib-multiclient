@@ -20,7 +20,7 @@ namespace multiclient {
 struct MultiClientConfig {
   std::filesystem::path global_config_path;
   std::optional<std::filesystem::path> key_store_root;
-  std::string blockchain_name = "mainnet";
+  std::string blockchain_name = "";
   bool reset_key_store = false;
   size_t scheduler_threads = 1;
 };
@@ -40,6 +40,7 @@ public:
   void send_callback_request(RequestCallback req) const;
 
   td::Result<std::int32_t> get_consensus_block() const;
+  td::Result<SessionPtr> get_session(const RequestParameters& options, SessionPtr&& session) const;
 private:
   const MultiClientConfig config_;
   std::shared_ptr<td::actor::Scheduler> scheduler_;

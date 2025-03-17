@@ -21,7 +21,7 @@ namespace multiclient {
 struct ClientConfig {
   std::string global_config;
   std::optional<std::filesystem::path> key_store;
-  std::string blockchain_name = "mainnet";
+  std::string blockchain_name = "";
   bool use_callbacks_for_network = false;
   bool ignore_cache = false;
   bool sync_tonlib = true;

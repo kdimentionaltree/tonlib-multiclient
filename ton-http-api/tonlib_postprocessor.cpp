@@ -264,11 +264,13 @@ static const std::map<std::string, std::pair<std::string, std::function<td::Resu
 
 
 TonlibWorkerResponse TonlibPostProcessor::process_getAddressInformation(
-    const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res
+    const std::string& address,
+    td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res,
+    multiclient::SessionPtr&& session
 ) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   auto result = res.move_as_ok();
@@ -280,7 +282,7 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressInformation(
   {
     auto r_std_address = block::StdAddress::parse(address);
     if (r_std_address.is_error()) {
-      return TonlibWorkerResponse::from_error_string(r_std_address.move_as_error().to_string());
+      return TonlibWorkerResponse::from_error_string(r_std_address.move_as_error().to_string(), 503, std::move(session));
     }
     auto std_address = r_std_address.move_as_ok();
     DetectAddressResult address_detect{std_address, "unknown"};
@@ -289,12 +291,16 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressInformation(
       builder["suspended"] = true;
     }
   }
-  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt, std::move(session)};
 }
-TonlibWorkerResponse TonlibPostProcessor::process_getWalletInformation(const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res) const {
+TonlibWorkerResponse TonlibPostProcessor::process_getWalletInformation(
+    const std::string& address,
+    td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res,
+    multiclient::SessionPtr&& session
+) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   auto result = res.move_as_ok();
@@ -314,47 +320,53 @@ TonlibWorkerResponse TonlibPostProcessor::process_getWalletInformation(const std
       if (parser_ != wallets::wallet_data_parsers.end()) {
         auto data_cell = vm::std_boc_deserialize(result->data_);
         if (data_cell.is_error()) {
-          return TonlibWorkerResponse::from_error_string(data_cell.move_as_error().to_string());
+          return TonlibWorkerResponse::from_error_string(data_cell.move_as_error().to_string(), 503, std::move(session));
         }
         auto data = data_cell.move_as_ok();
         builder["wallet_type"] = parser_->second.first;
         auto parse_result = parser_->second.second(builder, data);
         if (parse_result.is_error()) {
-          return TonlibWorkerResponse::from_error_string(parse_result.move_as_error().to_string());
+          return TonlibWorkerResponse::from_error_string(parse_result.move_as_error().to_string(), 503, std::move(session));
         }
       }
     }
   }
-  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt, std::move(session)};
 }
-TonlibWorkerResponse TonlibPostProcessor::process_getAddressBalance(const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res) const {
+TonlibWorkerResponse TonlibPostProcessor::process_getAddressBalance(
+    const std::string& address,
+    td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res,
+    multiclient::SessionPtr&& session
+) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   auto result = res.move_as_ok();
   auto balance =  std::to_string(result->balance_ < 0 ? 0 : result->balance_);
-  return TonlibWorkerResponse{true, nullptr, "\"" +balance + "\"", std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, "\"" +balance + "\"", std::nullopt, std::move(session)};
 }
 TonlibWorkerResponse TonlibPostProcessor::process_getAddressState(
-    const std::string& address, td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res
+    const std::string& address,
+    td::Result<tonlib_api::raw_getAccountState::ReturnType>&& res,
+    multiclient::SessionPtr&& session
 ) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   auto result = res.move_as_ok();
   auto state = get_address_state(result);
-  return TonlibWorkerResponse{true, nullptr, "\"" + state + "\"", std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, "\"" + state + "\"", std::nullopt, std::move(session)};
 }
 TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactions(
-    td::Result<tonlib_api::blocks_getTransactions::ReturnType>&& res
+    td::Result<tonlib_api::blocks_getTransactions::ReturnType>&& res, multiclient::SessionPtr&& session
 ) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   auto result = res.move_as_ok();
@@ -364,14 +376,14 @@ TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactions(
   for (size_t i = 0; i < result->transactions_.size(); ++i) {
     builder["transactions"][i]["account"] = workchain_str + ":" + td::hex_encode(result->transactions_[i]->account_);
   }
-  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt, std::move(session)};
 }
 TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactionsExt(
-    td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType>&& res
+    td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType>&& res, multiclient::SessionPtr&& session
 ) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   auto result = res.move_as_ok();
@@ -386,15 +398,18 @@ TonlibWorkerResponse TonlibPostProcessor::process_getBlockTransactionsExt(
           std::to_string(std_address.workchain) + ":" + td::hex_encode(std_address.addr.as_slice().str());
     }
   }
-  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt, std::move(session)};
 }
 
 TonlibWorkerResponse TonlibPostProcessor::process_getTransactions(
-    td::Result<tonlib_api::raw_getTransactionsV2::ReturnType>&& res, bool v2_schema, bool unwrap_single_transaction
+    td::Result<tonlib_api::raw_getTransactionsV2::ReturnType>&& res,
+    bool v2_schema,
+    bool unwrap_single_transaction,
+    multiclient::SessionPtr&& session
 ) const {
   using namespace userver::formats::json;
   if (res.is_error()) {
-    return TonlibWorkerResponse::from_tonlib_result(std::move(res));
+    return TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
   auto result = res.move_as_ok();
 
@@ -452,11 +467,11 @@ TonlibWorkerResponse TonlibPostProcessor::process_getTransactions(
   }
 
   if (v2_schema) {
-    return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt};
+    return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt, std::move(session)};
   }
   if (unwrap_single_transaction && result->transactions_.size() == 1) {
-    return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"][0]), std::nullopt};
+    return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"][0]), std::nullopt, std::move(session)};
   }
-  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"]), std::nullopt};
+  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()["transactions"]), std::nullopt, std::move(session)};
 }
 }  // namespace ton_http::core

@@ -67,13 +67,20 @@ T get_random_index(T from, T to) {
 }  // namespace
 
 void MultiClientActor::send_request_json(RequestJson request, td::Promise<std::string> promise) {
-  auto worker_indices = select_workers(request.parameters);
-  if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error(-3, "no workers available (" + request.parameters.to_string() + ")"));
-    return;
+  SessionPtr session;
+  if (request.session) {
+    session = request.session;
+  } else {
+    auto r_session = get_session_impl(request.parameters, nullptr);
+    if (r_session.is_error()) {
+      promise.set_error(r_session.move_as_error_prefix("failed to get session: "));
+      return;
+    }
+    session = r_session.move_as_ok();
   }
+
   auto multi_promise = PromiseSuccessAny<std::string>(std::move(promise));
-  for (auto worker_index : worker_indices) {
+  for (auto worker_index : session->active_workers()) {
     send_worker_request_json(worker_index, request.request, multi_promise.get_promise());
   }
 }
@@ -84,16 +91,23 @@ void MultiClientActor::send_callback_request(RequestCallback request) {
 
   CHECK(callback_ != nullptr);
 
-  auto worker_indices = select_workers(request.parameters);
-  if (worker_indices.empty()) {
-    callback_->on_error(
-        kUndefinedClientId, request.request_id,
-        tonlib_api::make_object<tonlib_api::error>(-3, "no workers available (" + request.parameters.to_string() + ")")
-    );
-    return;
+  SessionPtr session;
+  if (request.session) {
+    session = request.session;
+  } else {
+    auto r_session = get_session_impl(request.parameters, nullptr);
+    if (r_session.is_error()) {
+      auto error = r_session.move_as_error_prefix("failed to get session: ");
+      callback_->on_error(
+          kUndefinedClientId, request.request_id,
+          tonlib_api::make_object<tonlib_api::error>(error.code(), error.message().str())
+      );
+      return;
+    }
+    session = r_session.move_as_ok();
   }
 
-  for (auto worker_index : worker_indices) {
+  for (auto worker_index : session->active_workers()) {
     send_worker_callback_request(worker_index, request.request_id, request.request_creator());
   }
 }
@@ -275,6 +289,19 @@ void MultiClientActor::get_consensus_block(td::Promise<std::int32_t>&& promise) 
   }
   promise.set_result(consensus_block);
 }
+
+td::Result<SessionPtr> MultiClientActor::get_session_impl(const RequestParameters& options, SessionPtr session) const {
+  auto worker_indices = select_workers(options);
+  if (worker_indices.empty()) {
+    return td::Status::Error(-3, "no workers available (" + options.to_string() + ")");
+  }
+  if (session) {
+    session->set_active_workers(std::move(worker_indices));
+    return std::move(session);
+  }
+  return std::make_shared<Session>(std::move(worker_indices));
+}
+
 
 std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& options) const {
   std::vector<size_t> result;

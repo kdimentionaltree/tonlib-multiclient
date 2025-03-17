@@ -57,17 +57,17 @@ std::string ConsensusBlockResult::to_json_string() const {
   return std::move(res);
 }
 
-td::Result<ConsensusBlockResult> TonlibWorker::getConsensusBlock() const {
+TonlibWorker::Result<ConsensusBlockResult> TonlibWorker::getConsensusBlock(multiclient::SessionPtr session) const {
   auto res = tonlib_.get_consensus_block();
   if (res.is_error()) {
-    return res.move_as_error();
+    return {res.move_as_error(), session};
   }
-  return ConsensusBlockResult{ res.move_as_ok(), std::time(nullptr) };
+  return {ConsensusBlockResult{ res.move_as_ok(), std::time(nullptr) }, session};
 }
-td::Result<DetectAddressResult> TonlibWorker::detectAddress(const std::string& address) const {
+TonlibWorker::Result<DetectAddressResult> TonlibWorker::detectAddress(const std::string& address, multiclient::SessionPtr session) const {
   auto r_std_address = block::StdAddress::parse(address);
   if (r_std_address.is_error()) {
-    return r_std_address.move_as_error();
+    return {r_std_address.move_as_error(), session};
   }
   const auto std_address = r_std_address.move_as_ok();
   std::string given_type = "raw_form";
@@ -75,58 +75,65 @@ td::Result<DetectAddressResult> TonlibWorker::detectAddress(const std::string& a
     given_type = std::string("friendly_") + (std_address.bounceable ? "bounceable" : "non_bounceable");
   }
   DetectAddressResult result{std_address, given_type};
-  return std::move(result);
+  return {std::move(result), session};
 }
-td::Result<std::string> TonlibWorker::packAddress(const std::string& address) const {
+TonlibWorker::Result<std::string> TonlibWorker::packAddress(const std::string& address, multiclient::SessionPtr session) const {
   auto r_std_address = block::StdAddress::parse(address);
   if (r_std_address.is_error()) {
-    return r_std_address.move_as_error();
+    return {r_std_address.move_as_error(), session};
   }
   const auto std_address = r_std_address.move_as_ok();
-  return std::move(std_address.rserialize(true));
+  return {std::move(std_address.rserialize(true)), session};
 }
 
-td::Result<std::string> TonlibWorker::unpackAddress(const std::string& address) const {
+TonlibWorker::Result<std::string> TonlibWorker::unpackAddress(const std::string& address, multiclient::SessionPtr session) const {
   block::StdAddress std_address;
   if (std_address.rdeserialize(address)) {
     const DetectAddressResult result{std_address, "unknown"};
-    return result.to_raw_form(true);
+    return {result.to_raw_form(true), session};
   }
 }
-td::Result<DetectHashResult> TonlibWorker::detectHash(const std::string& hash) const {
+TonlibWorker::Result<DetectHashResult> TonlibWorker::detectHash(const std::string& hash, multiclient::SessionPtr session) const {
   auto raw_hash = utils::stringToHash(hash);
   if (!raw_hash.has_value()) {
-    return td::Status::Error("Invalid hash");
+    return {td::Status::Error("Invalid hash"), session};
   }
   DetectHashResult result{raw_hash.value()};
-  return std::move(result);
+  return {std::move(result), session};
 }
-td::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> TonlibWorker::getMasterchainInfo() const {
-  auto request = multiclient::Request<tonlib_api::blocks_getMasterchainInfo>{
+TonlibWorker::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> TonlibWorker::getMasterchainInfo(multiclient::SessionPtr session) const {
+  auto request = multiclient::RequestFunction<tonlib_api::blocks_getMasterchainInfo>{
       .parameters = {.mode = multiclient::RequestMode::Single},
-      .request_creator = [] { return tonlib_api::blocks_getMasterchainInfo(); },
+      .request_creator = [] { return tonlib_api::make_object<tonlib_api::blocks_getMasterchainInfo>(); },
+      .session = std::move(session)
   };
-  auto result = send_request(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType> TonlibWorker::getMasterchainBlockSignatures(ton::BlockSeqno seqno) const {
-  auto request = multiclient::Request<tonlib_api::blocks_getMasterchainBlockSignatures>{
+TonlibWorker::Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType> TonlibWorker::getMasterchainBlockSignatures(ton::BlockSeqno seqno,
+    multiclient::SessionPtr session) const {
+  auto request = multiclient::RequestFunction<tonlib_api::blocks_getMasterchainBlockSignatures>{
     .parameters = {.mode = multiclient::RequestMode::Single},
-    .request_creator = [seqno] { return tonlib_api::blocks_getMasterchainBlockSignatures(seqno); },
+    .request_creator = [seqno] { return tonlib_api::make_object<tonlib_api::blocks_getMasterchainBlockSignatures>(seqno); },
+    .session = std::move(session)
   };
-  auto result = send_request(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), session};
 }
-td::Result<tonlib_api::raw_getAccountState::ReturnType> TonlibWorker::getAddressInformation(
-    std::string address, std::optional<std::int32_t> seqno
+TonlibWorker::Result<tonlib_api::raw_getAccountState::ReturnType> TonlibWorker::getAddressInformation(
+    std::string address,
+    std::optional<std::int32_t> seqno,
+    multiclient::SessionPtr session
 ) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
   if (seqno.has_value()) {
-    auto res = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
+    auto [res, new_session] = lookupBlock(ton::masterchainId,
+      ton::shardIdAll, seqno.value(), std::nullopt, std::nullopt, session);
     if (!res.is_ok()) {
-      return res.move_as_error();
+      return {res.move_as_error(), new_session};
     }
     with_block = res.move_as_ok();
+    session = std::move(new_session);
   }
   if (!with_block) {
     auto request = multiclient::RequestFunction<tonlib_api::raw_getAccountState>{
@@ -136,10 +143,11 @@ td::Result<tonlib_api::raw_getAccountState::ReturnType> TonlibWorker::getAddress
               return tonlib_api::make_object<tonlib_api::raw_getAccountState>(
                   tonlib_api::make_object<tonlib_api::accountAddress>(address_)
               );
-            }
+            },
+        .session = session
     };
-    auto result = send_request_function(std::move(request), true);
-    return std::move(result);
+    auto [result, new_sesion] = send_request_function(std::move(request), true);
+    return {std::move(result), new_sesion};
   } else {
     auto request = multiclient::RequestFunction<tonlib_api::withBlock>{
         .parameters = {.mode = multiclient::RequestMode::Single},
@@ -158,25 +166,30 @@ td::Result<tonlib_api::raw_getAccountState::ReturnType> TonlibWorker::getAddress
                       tonlib_api::make_object<tonlib_api::accountAddress>(address_)
                   )
               );
-            }
+            },
+        .session = session
     };
-    auto result = send_request_function(std::move(request), true);
+    auto [result, new_session] = send_request_function(std::move(request), true);
     if (result.is_error()) {
-      return result.move_as_error();
+      return {result.move_as_error(), new_session};
     }
-    return ton::move_tl_object_as<tonlib_api::raw_fullAccountState>(result.move_as_ok());
+    return {ton::move_tl_object_as<tonlib_api::raw_fullAccountState>(result.move_as_ok()), new_session};
   }
 }
-td::Result<tonlib_api::getAccountState::ReturnType> TonlibWorker::getExtendedAddressInformation(
-    std::string address, std::optional<std::int32_t> seqno
+TonlibWorker::Result<tonlib_api::getAccountState::ReturnType> TonlibWorker::getExtendedAddressInformation(
+    std::string address,
+    std::optional<std::int32_t> seqno,
+    multiclient::SessionPtr session
 ) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
   if (seqno.has_value()) {
-    auto res = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
+    auto [res, new_session] = lookupBlock(ton::masterchainId, ton::shardIdAll,
+      seqno.value(), std::nullopt, std::nullopt, session);
     if (!res.is_ok()) {
-      return res.move_as_error();
+      return {res.move_as_error(), new_session};
     }
     with_block = res.move_as_ok();
+    session = std::move(new_session);
   }
   if (!with_block) {
     auto request = multiclient::RequestFunction<tonlib_api::getAccountState>{
@@ -186,10 +199,11 @@ td::Result<tonlib_api::getAccountState::ReturnType> TonlibWorker::getExtendedAdd
             return tonlib_api::make_object<tonlib_api::getAccountState>(
                 tonlib_api::make_object<tonlib_api::accountAddress>(address_)
             );
-      }
+      },
+      .session = session
     };
-    auto result = send_request_function(std::move(request), true);
-    return std::move(result);
+    auto [result, new_session] = send_request_function(std::move(request), true);
+    return {std::move(result), new_session};
   } else {
     auto request = multiclient::RequestFunction<tonlib_api::withBlock>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -208,24 +222,26 @@ td::Result<tonlib_api::getAccountState::ReturnType> TonlibWorker::getExtendedAdd
                     tonlib_api::make_object<tonlib_api::accountAddress>(address_)
                 )
             );
-      }
+      },
+      .session = session
     };
-    auto result = send_request_function(std::move(request), true);
+    auto [result, new_session] = send_request_function(std::move(request), true);
     if (result.is_error()) {
-      return result.move_as_error();
+      return {result.move_as_error(), new_session};
     }
-    return ton::move_tl_object_as<tonlib_api::fullAccountState>(result.move_as_ok());
+    return {ton::move_tl_object_as<tonlib_api::fullAccountState>(result.move_as_ok()), session};
   }
 }
-td::Result<tonlib_api::blocks_lookupBlock::ReturnType> TonlibWorker::lookupBlock(
+TonlibWorker::Result<tonlib_api::blocks_lookupBlock::ReturnType> TonlibWorker::lookupBlock(
     const ton::WorkchainId& workchain,
     const ton::ShardId& shard,
     const std::optional<ton::BlockSeqno>& seqno,
     const std::optional<ton::LogicalTime>& lt,
-    const std::optional<ton::UnixTime>& unixtime
+    const std::optional<ton::UnixTime>& unixtime,
+    multiclient::SessionPtr session
 ) const {
   if (!(seqno.has_value() || lt.has_value() || unixtime.has_value())) {
-    return td::Status::Error(416, "one of seqno, lt, unixtime should be specified");
+    return {td::Status::Error(416, "one of seqno, lt, unixtime should be specified"), session};
   }
   int lookupMode = 0;
   if (seqno.has_value()) {
@@ -250,22 +266,26 @@ td::Result<tonlib_api::blocks_lookupBlock::ReturnType> TonlibWorker::lookupBlock
                 value_or_default(unixtime, 0)
             );
           },
+      .session = session
   };
-  auto result = send_request_function(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::blocks_getShardBlockProof::ReturnType> TonlibWorker::getShardBlockProof(
+TonlibWorker::Result<tonlib_api::blocks_getShardBlockProof::ReturnType> TonlibWorker::getShardBlockProof(
     const ton::WorkchainId& workchain,
     const ton::ShardId& shard,
     const ton::BlockSeqno& seqno,
-    const std::optional<ton::BlockSeqno>& from_seqno
+    const std::optional<ton::BlockSeqno>& from_seqno,
+    multiclient::SessionPtr session
 ) const {
   std::int32_t mode = 0;
-  auto r_blk_id = lookupBlock(workchain, shard, seqno);
+  auto [r_blk_id, new_session] = lookupBlock(workchain, shard, seqno,
+    std::nullopt, std::nullopt, session);
   if (r_blk_id.is_error()) {
-    return r_blk_id.move_as_error();
+    return {r_blk_id.move_as_error(), new_session};
   }
   auto blk_id = r_blk_id.move_as_ok();
+  session = std::move(new_session);
 
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getShardBlockProof>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -279,17 +299,19 @@ td::Result<tonlib_api::blocks_getShardBlockProof::ReturnType> TonlibWorker::getS
             return tonlib_api::make_object<tonlib_api::blocks_getShardBlockProof>(
                 tonlib_api::make_object<tonlib_api::ton_blockIdExt>(w, s, ss, r, f), mode, nullptr
             );
-          }
+          },
+      .session = session
   };
 
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> from_blk_id = nullptr;
   if (from_seqno.has_value()) {
     mode = 1;
-    auto r_from_blk_id = lookupBlock(ton::masterchainId, ton::shardIdAll, from_seqno.value());
+    auto [r_from_blk_id, new_session] = lookupBlock(ton::masterchainId, ton::shardIdAll, from_seqno.value(), std::nullopt, std::nullopt, session);
     if (r_from_blk_id.is_error()) {
-      return r_from_blk_id.move_as_error_prefix("lookup from block error: ");
+      return {r_from_blk_id.move_as_error_prefix("lookup from block error: "), new_session};
     }
     from_blk_id = r_from_blk_id.move_as_ok();
+    session = new_session;
     request.request_creator = [mode,
                                w = blk_id->workchain_,
                                s = blk_id->shard_,
@@ -308,15 +330,18 @@ td::Result<tonlib_api::blocks_getShardBlockProof::ReturnType> TonlibWorker::getS
       );
     };
   }
-  auto result = send_request_function(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session_2] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session_2};
 }
-td::Result<tonlib_api::blocks_getShards::ReturnType> TonlibWorker::getShards(
-    std::optional<ton::BlockSeqno> mc_seqno, std::optional<ton::LogicalTime> lt, std::optional<ton::UnixTime> unixtime
+TonlibWorker::Result<tonlib_api::blocks_getShards::ReturnType> TonlibWorker::getShards(
+    std::optional<ton::BlockSeqno> mc_seqno,
+    std::optional<ton::LogicalTime> lt,
+    std::optional<ton::UnixTime> unixtime,
+    multiclient::SessionPtr session
 ) const {
-  auto r_blk_id = lookupBlock(ton::masterchainId, ton::shardIdAll, mc_seqno, lt, unixtime);
+  auto [r_blk_id, new_session] = lookupBlock(ton::masterchainId, ton::shardIdAll, mc_seqno, lt, unixtime, session);
   if (r_blk_id.is_error()) {
-    return r_blk_id.move_as_error();
+    return {r_blk_id.move_as_error(), new_session};
   }
   auto blk_id = r_blk_id.move_as_ok();
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getShards>{
@@ -330,27 +355,30 @@ td::Result<tonlib_api::blocks_getShards::ReturnType> TonlibWorker::getShards(
             return tonlib_api::make_object<tonlib_api::blocks_getShards>(
                 tonlib_api::make_object<tonlib_api::ton_blockIdExt>(w, s, ss, r, f)
             );
-          }
+          },
+      .session = session
   };
-  auto result = send_request_function(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session_2] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session_2};
 }
-td::Result<tonlib_api::blocks_getBlockHeader::ReturnType> TonlibWorker::getBlockHeader(
+TonlibWorker::Result<tonlib_api::blocks_getBlockHeader::ReturnType> TonlibWorker::getBlockHeader(
     const ton::WorkchainId& workchain,
     const ton::ShardId& shard,
     const ton::BlockSeqno& seqno,
     const std::string& root_hash,
-    const std::string& file_hash
+    const std::string& file_hash,
+    multiclient::SessionPtr session
 ) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> blk_id = nullptr;
   if (!root_hash.empty() && !file_hash.empty()) {
     blk_id = tonlib_api::make_object<tonlib_api::ton_blockIdExt>(workchain, shard, seqno, root_hash, file_hash);
   } else {
-    auto r_blk_id = lookupBlock(workchain, shard, seqno);
+    auto [r_blk_id, new_session] = lookupBlock(workchain, shard, seqno, std::nullopt, std::nullopt, session);
     if (r_blk_id.is_error()) {
-      return r_blk_id.move_as_error();
+      return {r_blk_id.move_as_error(), new_session};
     }
     blk_id = r_blk_id.move_as_ok();
+    session = std::move(new_session);
   }
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getBlockHeader>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -363,32 +391,37 @@ td::Result<tonlib_api::blocks_getBlockHeader::ReturnType> TonlibWorker::getBlock
             return tonlib_api::make_object<tonlib_api::blocks_getBlockHeader>(
                 tonlib_api::make_object<tonlib_api::ton_blockIdExt>(w, s, ss, r, f)
             );
-          }
+          },
+      .session = std::move(session)
   };
-  auto result = send_request_function(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::blocks_getOutMsgQueueSizes::ReturnType> TonlibWorker::getOutMsgQueueSizes() const {
+TonlibWorker::Result<tonlib_api::blocks_getOutMsgQueueSizes::ReturnType> TonlibWorker::getOutMsgQueueSizes(multiclient::SessionPtr session) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getOutMsgQueueSizes>{
       .parameters = {.mode = multiclient::RequestMode::Single},
       .request_creator =
           [] {
             return tonlib_api::make_object<tonlib_api::blocks_getOutMsgQueueSizes>();
-          }
+          },
+      .session = std::move(session)
   };
-  auto result = send_request_function(std::move(request), true);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigParam(
-    const std::int32_t& param, std::optional<ton::BlockSeqno> seqno
+TonlibWorker::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigParam(
+    const std::int32_t& param,
+    std::optional<ton::BlockSeqno> seqno,
+    multiclient::SessionPtr session
 ) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
   if (seqno.has_value()) {
-    auto res = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
+    auto [res, new_session] = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
     if (!res.is_ok()) {
-      return res.move_as_error();
+      return {res.move_as_error(), new_session};
     }
     with_block = res.move_as_ok();
+    session = std::move(new_session);
   }
   if (!with_block) {
     auto request = multiclient::RequestFunction<tonlib_api::getConfigParam>{
@@ -396,10 +429,11 @@ td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigParam(
         .request_creator =
             [param_ = param] {
               return tonlib_api::make_object<tonlib_api::getConfigParam>(param_, 0);
-            }
+            },
+        .session = session
     };
-    auto result = send_request_function(std::move(request), true);
-    return std::move(result);
+    auto [result, new_session] = send_request_function(std::move(request), true);
+    return {std::move(result), new_session};
   } else {
     auto request = multiclient::RequestFunction<tonlib_api::withBlock>{
         .parameters = {.mode = multiclient::RequestMode::Single},
@@ -416,23 +450,25 @@ td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigParam(
                   ),
                   tonlib_api::make_object<tonlib_api::getConfigParam>(param_, 0)
               );
-            }
+            },
+        .session = session
     };
-    auto result = send_request_function(std::move(request), true);
+    auto [result, new_session] = send_request_function(std::move(request), true);
     if (result.is_error()) {
-      return result.move_as_error();
+      return {result.move_as_error(), new_session};
     }
-    return ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok());
+    return {ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok()), new_session};
   }
 }
-td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigAll(std::optional<ton::BlockSeqno> seqno) const {
+TonlibWorker::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigAll(std::optional<ton::BlockSeqno> seqno, multiclient::SessionPtr session) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
   if (seqno.has_value()) {
-    auto res = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value());
+    auto [res, new_session] = lookupBlock(ton::masterchainId, ton::shardIdAll, seqno.value(), std::nullopt, std::nullopt, session);
     if (!res.is_ok()) {
-      return res.move_as_error();
+      return {res.move_as_error(), new_session};
     }
     with_block = res.move_as_ok();
+    session = std::move(new_session);
   }
   if (!with_block) {
     auto request = multiclient::RequestFunction<tonlib_api::getConfigAll>{
@@ -440,10 +476,11 @@ td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigAll(st
       .request_creator =
           [] {
             return tonlib_api::make_object<tonlib_api::getConfigAll>(0);
-      }
+      },
+      .session = std::move(session)
     };
-    auto result = send_request_function(std::move(request), true);
-    return std::move(result);
+    auto [result, new_session] = send_request_function(std::move(request), true);
+    return {std::move(result), new_session};
   } else {
     auto request = multiclient::RequestFunction<tonlib_api::withBlock>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -459,20 +496,23 @@ td::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getConfigAll(st
                 ),
                 tonlib_api::make_object<tonlib_api::getConfigAll>(0)
             );
-      }
+      },
+      .session = std::move(session)
     };
-    auto result = send_request_function(std::move(request), true);
+    auto [result, new_session] = send_request_function(std::move(request), true);
+    session = std::move(new_session);
     if (result.is_error()) {
-      return result.move_as_error();
+      return {result.move_as_error(), session};
     }
-    return ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok());
+    return {ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok()), session};
   }
 }
-td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::raw_getBlockTransactions(
+TonlibWorker::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::raw_getBlockTransactions(
     const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
     size_t count,
     tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId>&& after,
-    std::optional<bool> archival
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getTransactions>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -487,7 +527,8 @@ td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::raw_get
             return tonlib_api::make_object<tonlib_api::blocks_getTransactions>(
                 tonlib_api::make_object<tonlib_api::ton_blockIdExt>(w, sh, s, r, f), mode, c, nullptr
             );
-          }
+          },
+      .session = std::move(session)
   };
   if (after) {
     request.request_creator = [w = blk_id->workchain_,
@@ -510,14 +551,15 @@ td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::raw_get
   if (archival.has_value()) {
     request.parameters.archival = archival.value();
   }
-  auto result = send_request_function(std::move(request), !archival.has_value());
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::raw_getBlockTransactionsExt(
+TonlibWorker::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::raw_getBlockTransactionsExt(
     const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
     size_t count,
     tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId>&& after,
-    std::optional<bool> archival
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getTransactionsExt>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -532,7 +574,8 @@ td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::raw_
             return tonlib_api::make_object<tonlib_api::blocks_getTransactionsExt>(
                 tonlib_api::make_object<tonlib_api::ton_blockIdExt>(w, sh, s, r, f), mode, c, nullptr
             );
-          }
+          },
+      .session = std::move(session)
   };
   if (after) {
     request.request_creator = [w = blk_id->workchain_,
@@ -555,14 +598,15 @@ td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::raw_
   if (archival.has_value()) {
     request.parameters.archival = archival.value();
   }
-  auto result = send_request_function(std::move(request), !archival.has_value());
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::raw_getTransactions::ReturnType> TonlibWorker::raw_getTransactions(
+TonlibWorker::Result<tonlib_api::raw_getTransactions::ReturnType> TonlibWorker::raw_getTransactions(
     const std::string& account_address,
     const ton::LogicalTime& from_transaction_lt,
     const std::string& from_transaction_hash,
-    const std::optional<bool> archival
+    const std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::raw_getTransactions>{
       .parameters = {.mode = multiclient::RequestMode::Single},
@@ -573,21 +617,23 @@ td::Result<tonlib_api::raw_getTransactions::ReturnType> TonlibWorker::raw_getTra
                 tonlib_api::make_object<tonlib_api::accountAddress>(a),
                 tonlib_api::make_object<tonlib_api::internal_transactionId>(fl, fh)
             );
-          }
+          },
+      .session = std::move(session)
   };
   if (archival.has_value()) {
     request.parameters.archival = archival.value();
   }
-  auto result = send_request_function(std::move(request), !archival.has_value());
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::raw_getTransactionsV2(
+TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::raw_getTransactionsV2(
     const std::string& account_address,
     const ton::LogicalTime& from_transaction_lt,
     const std::string& from_transaction_hash,
     const size_t count,
     const bool try_decode_messages,
-    const std::optional<bool> archival
+    const std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::raw_getTransactionsV2>{
     .parameters = {.mode = multiclient::RequestMode::Single},
@@ -598,14 +644,16 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::raw_getT
         tonlib_api::make_object<tonlib_api::internal_transactionId>(fl, fh),
         c, dm
         );
-    }};
+    },
+    .session = std::move(session)
+  };
   if (archival.has_value()) {
     request.parameters.archival = archival.value();
   }
-  auto result = send_request_function(std::move(request), !archival.has_value());
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::getBlockTransactions(
+TonlibWorker::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::getBlockTransactions(
     const ton::WorkchainId& workchain,
     const ton::ShardId& shard,
     const ton::BlockSeqno& seqno,
@@ -613,18 +661,20 @@ td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::getBloc
     const std::string& root_hash,
     const std::string& file_hash,
     const std::optional<ton::LogicalTime>& after_lt,
-    const std::string after_hash,
-    std::optional<bool> archival
+    const std::string& after_hash,
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> blk_id = nullptr;
   if (!root_hash.empty() && !file_hash.empty()) {
     blk_id = tonlib_api::make_object<tonlib_api::ton_blockIdExt>(workchain, shard, seqno, root_hash, file_hash);
   } else {
-    auto r_blk_id = lookupBlock(workchain, shard, seqno);
+    auto [r_blk_id, new_session] = lookupBlock(workchain, shard, seqno, std::nullopt, std::nullopt, session);
     if (r_blk_id.is_error()) {
-      return r_blk_id.move_as_error();
+      return {r_blk_id.move_as_error(), new_session};
     }
     blk_id = r_blk_id.move_as_ok();
+    session = std::move(new_session);
   }
 
   tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId> after;
@@ -647,11 +697,12 @@ td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::getBloc
   txs->transactions_.reserve(count);
   while (!is_finished) {
     size_t chunk_size = (left_count > CHUNK_SIZE ? CHUNK_SIZE : left_count);
-    auto result = raw_getBlockTransactions(blk_id, chunk_size, std::move(after), archival);
+    auto [result, new_session] = raw_getBlockTransactions(blk_id, chunk_size, std::move(after), archival, session);
     if (result.is_error()) {
-      return result.move_as_error();
+      return {result.move_as_error(), new_session};
     }
     auto local = result.move_as_ok();
+    session = std::move(new_session);
 
     txs->id_ = std::move(local->id_);
     txs->incomplete_ = local->incomplete_;
@@ -674,9 +725,9 @@ td::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::getBloc
   }
   txs->req_count_ = static_cast<std::int32_t>(count);
 
-  return std::move(txs);
+  return {std::move(txs), session};
 }
-td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::getBlockTransactionsExt(
+TonlibWorker::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::getBlockTransactionsExt(
     const ton::WorkchainId& workchain,
     const ton::ShardId& shard,
     const ton::BlockSeqno& seqno,
@@ -684,18 +735,20 @@ td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::getB
     const std::string& root_hash,
     const std::string& file_hash,
     const std::optional<ton::LogicalTime>& after_lt,
-    const std::string after_hash,
-    std::optional<bool> archival
+    const std::string& after_hash,
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> blk_id = nullptr;
   if (!root_hash.empty() && !file_hash.empty()) {
     blk_id = tonlib_api::make_object<tonlib_api::ton_blockIdExt>(workchain, shard, seqno, root_hash, file_hash);
   } else {
-    auto r_blk_id = lookupBlock(workchain, shard, seqno);
+    auto [r_blk_id, new_session] = lookupBlock(workchain, shard, seqno, std::nullopt, std::nullopt, session);
     if (r_blk_id.is_error()) {
-      return r_blk_id.move_as_error();
+      return {r_blk_id.move_as_error(), new_session};
     }
     blk_id = r_blk_id.move_as_ok();
+    session = std::move(new_session);
   }
 
   tonlib_api::object_ptr<tonlib_api::blocks_accountTransactionId> after;
@@ -718,11 +771,12 @@ td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::getB
   txs->transactions_.reserve(count);
   while (!is_finished) {
     size_t chunk_size = (left_count > CHUNK_SIZE ? CHUNK_SIZE : left_count);
-    auto result = raw_getBlockTransactionsExt(blk_id, chunk_size, std::move(after), archival);
+    auto [result, new_session] = raw_getBlockTransactionsExt(blk_id, chunk_size, std::move(after), archival, session);
     if (result.is_error()) {
-      return result.move_as_error();
+      return {result.move_as_error(), new_session};
     }
     auto local = result.move_as_ok();
+    session = std::move(new_session);
 
     txs->id_ = std::move(local->id_);
     txs->incomplete_ = local->incomplete_;
@@ -746,9 +800,9 @@ td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWorker::getB
     is_finished = (left_count <= 0) || !local->incomplete_;
   }
   txs->req_count_ = static_cast<std::int32_t>(count);
-  return std::move(txs);
+  return {std::move(txs), session};
 }
-td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTransactions(
+TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTransactions(
     const std::string& account_address,
     std::optional<ton::LogicalTime> from_transaction_lt,
     std::string from_transaction_hash,
@@ -756,13 +810,15 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTrans
     size_t count,
     size_t chunk_size,
     bool try_decode_messages,
-    std::optional<bool> archival
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
 ) const {
   if (!(from_transaction_lt.has_value() && !from_transaction_hash.empty())) {
-    auto r_account_state_ = getAddressInformation(account_address);
+    auto [r_account_state_, new_session] = getAddressInformation(account_address, std::nullopt, session);
     if (r_account_state_.is_error()) {
-      return r_account_state_.move_as_error();
+      return {r_account_state_.move_as_error(), new_session};
     }
+    session = std::move(new_session);
     auto account_state_ = r_account_state_.move_as_ok();
     from_transaction_lt = account_state_->last_transaction_id_->lt_;
     from_transaction_hash = account_state_->last_transaction_id_->hash_;
@@ -776,13 +832,14 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTrans
   tonlib_api::object_ptr<tonlib_api::raw_transactions> txs = tonlib_api::make_object<tonlib_api::raw_transactions>();
   while (!reach_lt && tx_count < count) {
     size_t local_chunk_size = (count - tx_count > chunk_size ? chunk_size : count - tx_count);
-    auto r_local = raw_getTransactionsV2(
-        account_address, current_lt, current_hash, local_chunk_size, try_decode_messages, archival
+    auto [r_local, new_session] = raw_getTransactionsV2(
+        account_address, current_lt, current_hash, local_chunk_size, try_decode_messages, archival, session
     );
     if (r_local.is_error()) {
-      return r_local.move_as_error();
+      return {r_local.move_as_error(), new_session};
     }
     auto local = r_local.move_as_ok();
+    session = std::move(new_session);
 
     for (auto& tx : local->transactions_) {
       if (tx->transaction_id_->lt_ <= to_transaction_lt) {
@@ -814,52 +871,58 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::getTrans
   if (txs->transactions_.size() > tx_count) {
     txs->transactions_.resize(tx_count);
   }
-  return std::move(txs);
+  return {std::move(txs), session};
 }
-td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocateTransactionByIncomingMessage(
-    const std::string& source, const std::string& destination, ton::LogicalTime created_lt
+
+TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocateTransactionByIncomingMessage(
+    const std::string& source,
+    const std::string& destination,
+    ton::LogicalTime created_lt,
+    multiclient::SessionPtr session
 ) const {
   auto r_src_addr = block::StdAddress::parse(source);
   if (r_src_addr.is_error()) {
-    return r_src_addr.move_as_error_prefix("failed to parse source: ");
+    return {r_src_addr.move_as_error_prefix("failed to parse source: "), session};
   }
   auto src = r_src_addr.move_as_ok();
 
   auto r_dest_addr = block::StdAddress::parse(destination);
   if (r_dest_addr.is_error()) {
-    return r_dest_addr.move_as_error_prefix("failed to parse destination: ");
+    return {r_dest_addr.move_as_error_prefix("failed to parse destination: "), session};
   }
   auto dest = r_dest_addr.move_as_ok();
 
   auto workchain = dest.workchain;
-  auto r_shards = getShards(std::nullopt, created_lt, std::nullopt);
+  auto [r_shards, new_session] = getShards(std::nullopt, created_lt, std::nullopt, session);
   if (r_shards.is_error()) {
-    return r_shards.move_as_error_prefix("failed to get shards at create_lt: ");
+    return {r_shards.move_as_error_prefix("failed to get shards at create_lt: "), new_session};
   }
   auto shards = r_shards.move_as_ok();
   for (auto& shard : shards->shards_) {
     auto shard_id = shard->shard_;
     for (auto i = 0; i < 3; ++i) {
       auto lt = created_lt + 1000000 * i;
-      auto r_block = lookupBlock(workchain, shard_id, std::nullopt, lt, std::nullopt);
+      auto [r_block, new_session] = lookupBlock(workchain, shard_id, std::nullopt, lt, std::nullopt, session);
       if (r_block.is_error()) {
         td::StringBuilder sb;
         sb << "failed to lookup block with lt " << lt << ": ";
-        return r_block.move_as_error_prefix(sb.as_cslice().str());
+        return {r_block.move_as_error_prefix(sb.as_cslice().str()), new_session};
       }
       auto block = r_block.move_as_ok();
+      session = std::move(new_session);
 
       constexpr size_t tx_count = 40;
-      auto r_txs = getBlockTransactions(
-          block->workchain_, block->shard_, block->seqno_, tx_count, block->root_hash_, block->file_hash_
+      auto [r_txs, new_session_2] = getBlockTransactions(
+          block->workchain_, block->shard_, block->seqno_, tx_count, block->root_hash_, block->file_hash_, 40, "", std::nullopt, session
       );
       if (r_txs.is_error()) {
         td::StringBuilder sb;
         sb << "failed to get transactions for block (" << block->workchain_ << ", " << block->shard_ << ", "
            << block->seqno_ << "): ";
-        return r_txs.move_as_error_prefix(sb.as_cslice().str());
+        return {r_txs.move_as_error_prefix(sb.as_cslice().str()), new_session_2};
       }
       auto blk_txs = r_txs.move_as_ok();
+      session = std::move(new_session_2);
 
       tonlib_api::object_ptr<tonlib_api::blocks_shortTxId> candidate = nullptr;
       size_t tx_found = 0;
@@ -873,12 +936,13 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocat
       }
       if (candidate != nullptr) {
         constexpr size_t min_tx_found = 10;
-        auto r_candidate_txs =
-            getTransactions(destination, candidate->lt_, candidate->hash_, std::max(tx_found, min_tx_found));
+        auto [r_candidate_txs, new_session] =
+            getTransactions(destination, candidate->lt_, candidate->hash_, std::max(tx_found, min_tx_found), 10, 30, true, std::nullopt, session);
         if (r_txs.is_error()) {
-          return r_txs.move_as_error_prefix("failed to get candidate transactions: ");
+          return {r_txs.move_as_error_prefix("failed to get candidate transactions: "), new_session};
         }
         auto candidate_txs = r_candidate_txs.move_as_ok();
+        session = std::move(new_session);
         for (auto & candidate_tx : candidate_txs->transactions_) {
           auto& in_msg = candidate_tx->in_msg_;
           if (in_msg && in_msg->source_ && !in_msg->source_->account_address_.empty()) {
@@ -889,55 +953,61 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocat
               auto prev_tx = tonlib_api::make_object<tonlib_api::internal_transactionId>(
                 0, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
               );
-              return tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx));
+              return {tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx)), session};
             }
           }
         }
       }
     }
   }
-  return td::Status::Error(404, "transaction was not found");
+  return {td::Status::Error(404, "transaction was not found"), session};
 }
-td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocateTransactionByOutgoingMessage(
-    const std::string& source, const std::string& destination, ton::LogicalTime created_lt
+TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocateTransactionByOutgoingMessage(
+    const std::string& source,
+    const std::string& destination,
+    ton::LogicalTime created_lt,
+    multiclient::SessionPtr session
 ) const {
   auto r_src_addr = block::StdAddress::parse(source);
   if (r_src_addr.is_error()) {
-    return r_src_addr.move_as_error_prefix("failed to parse source: ");
+    return {r_src_addr.move_as_error_prefix("failed to parse source: "), session};
   }
   auto src = r_src_addr.move_as_ok();
 
   auto r_dest_addr = block::StdAddress::parse(destination);
   if (r_dest_addr.is_error()) {
-    return r_dest_addr.move_as_error_prefix("failed to parse destination: ");
+    return {r_dest_addr.move_as_error_prefix("failed to parse destination: "), session};
   }
   auto dest = r_dest_addr.move_as_ok();
 
   auto workchain = src.workchain;
-  auto r_shards = getShards(std::nullopt, created_lt, std::nullopt);
+  auto [r_shards, new_session] = getShards(std::nullopt, created_lt, std::nullopt, session);
+  session = std::move(new_session);
   if (r_shards.is_error()) {
-    return r_shards.move_as_error_prefix("failed to get shards at create_lt: ");
+    return {r_shards.move_as_error_prefix("failed to get shards at create_lt: "), session};
   }
   auto shards = r_shards.move_as_ok();
   for (auto& shard : shards->shards_) {
     auto shard_id = shard->shard_;
-    auto r_block = lookupBlock(workchain, shard_id, std::nullopt, created_lt, std::nullopt);
+    auto [r_block, new_session] = lookupBlock(workchain, shard_id, std::nullopt, created_lt, std::nullopt, session);
+    session = std::move(new_session);
     if (r_block.is_error()) {
       td::StringBuilder sb;
       sb << "failed to lookup block with lt " << created_lt << ": ";
-      return r_block.move_as_error_prefix(sb.as_cslice().str());
+      return {r_block.move_as_error_prefix(sb.as_cslice().str()), session};
     }
     auto block = r_block.move_as_ok();
 
     constexpr size_t tx_count = 40;
-    auto r_txs = getBlockTransactions(
-        block->workchain_, block->shard_, block->seqno_, tx_count, block->root_hash_, block->file_hash_
+    auto [r_txs, new_session_2] = getBlockTransactions(
+        block->workchain_, block->shard_, block->seqno_, tx_count, block->root_hash_, block->file_hash_, std::nullopt, "", std::nullopt, session
     );
+    session = std::move(new_session_2);
     if (r_txs.is_error()) {
       td::StringBuilder sb;
       sb << "failed to get transactions for block (" << block->workchain_ << ", " << block->shard_ << ", "
          << block->seqno_ << "): ";
-      return r_txs.move_as_error_prefix(sb.as_cslice().str());
+      return {r_txs.move_as_error_prefix(sb.as_cslice().str()), session};
     }
     auto blk_txs = r_txs.move_as_ok();
 
@@ -953,10 +1023,11 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocat
     }
     if (candidate != nullptr) {
       constexpr size_t min_tx_found = 10;
-      auto r_candidate_txs =
-          getTransactions(source, candidate->lt_, candidate->hash_, std::max(tx_found, min_tx_found));
+      auto [r_candidate_txs, new_session] =
+          getTransactions(source, candidate->lt_, candidate->hash_, std::max(tx_found, min_tx_found), 10, 30, true, std::nullopt, session);
+      session = std::move(new_session);
       if (r_txs.is_error()) {
-        return r_txs.move_as_error_prefix("failed to get candidate transactions: ");
+        return {r_txs.move_as_error_prefix("failed to get candidate transactions: "), session};
       }
       auto candidate_txs = r_candidate_txs.move_as_ok();
       for (auto& candidate_tx : candidate_txs->transactions_) {
@@ -970,45 +1041,51 @@ td::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker::tryLocat
               auto prev_tx = tonlib_api::make_object<tonlib_api::internal_transactionId>(
                   0, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
               );
-              return tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx));
+              return {tonlib_api::make_object<tonlib_api::raw_transactions>(std::move(tx_vec), std::move(prev_tx)), session};
             }
           }
         }
       }
     }
   }
-  return td::Status::Error(404, "transaction was not found");
+  return {td::Status::Error(404, "transaction was not found"), session};
 }
-td::Result<tonlib_api::raw_sendMessage::ReturnType> TonlibWorker::raw_sendMessage(const std::string& boc) const {
+TonlibWorker::Result<tonlib_api::raw_sendMessage::ReturnType> TonlibWorker::raw_sendMessage(
+  const std::string& boc,
+  multiclient::SessionPtr session
+) const {
   auto r_boc = td::base64_decode(boc);
   if (r_boc.is_error()) {
-    return r_boc.move_as_error();
+    return {r_boc.move_as_error(), session};
   }
   auto boc_bytes = r_boc.move_as_ok();
   auto request = multiclient::RequestFunction<tonlib_api::raw_sendMessage>{
     .parameters = {.mode=multiclient::RequestMode::Multiple, .clients_number = 5},
     .request_creator = [boc_bytes]() {
       return tonlib_api::make_object<tonlib_api::raw_sendMessage>(boc_bytes);
-    }
+    },
+    .session = session
   };
-  auto result = send_request_function(std::move(request), false);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), false);
+  return {std::move(result), new_session};
 }
-td::Result<tonlib_api::raw_sendMessageReturnHash::ReturnType> TonlibWorker::raw_sendMessageReturnHash(
-    const std::string& boc
+TonlibWorker::Result<tonlib_api::raw_sendMessageReturnHash::ReturnType> TonlibWorker::raw_sendMessageReturnHash(
+    const std::string& boc,
+    multiclient::SessionPtr session
 ) const {
   auto r_boc = td::base64_decode(boc);
   if (r_boc.is_error()) {
-    return r_boc.move_as_error();
+    return {r_boc.move_as_error(), session};
   }
   auto boc_bytes = r_boc.move_as_ok();
   auto request = multiclient::RequestFunction<tonlib_api::raw_sendMessageReturnHash>{
     .parameters = {.mode=multiclient::RequestMode::Multiple, .clients_number = 5},
     .request_creator = [boc_bytes]() {
       return tonlib_api::make_object<tonlib_api::raw_sendMessageReturnHash>(boc_bytes);
-    }
+    },
+    .session = session
   };
-  auto result = send_request_function(std::move(request), false);
-  return std::move(result);
+  auto [result, new_session] = send_request_function(std::move(request), false);
+  return {std::move(result), new_session};
 }
 }  // namespace ton_http::core

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     config = tonlib_multiclient.MultiClientConfig(
         global_config_path="/code/ton/tonlib-multiclient/global-config.json",
         key_store_root="/code/ton/tonlib-multiclient/data/",
-        blockchain_name="mainnet",
+        blockchain_name="",
         reset_key_store=False,
         scheduler_threads=10,
     )
