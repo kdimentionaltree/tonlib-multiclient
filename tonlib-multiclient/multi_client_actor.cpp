@@ -313,7 +313,7 @@ std::vector<size_t> MultiClientActor::select_workers(const RequestParameters& op
   result.reserve(workers_.size());
   for (size_t i : std::views::iota(0u, workers_.size()) |
            std::views::filter([&](size_t i) { return workers_[i].is_alive; }) |
-           std::views::filter([&](size_t i) { return options.archival == true ? workers_[i].is_archival : true; })) {
+           std::views::filter([&](size_t i) { return options.archival.has_value() ? workers_[i].is_archival == options.archival.value() : true; })) {
     result.push_back(i);
   }
 

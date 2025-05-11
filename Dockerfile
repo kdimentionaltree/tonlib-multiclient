@@ -10,7 +10,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt update -y \
     libhiredis-dev libidn11-dev libjemalloc2 libjemalloc-dev libkrb5-dev libldap2-dev liblz4-dev \
      libnghttp2-dev libpugixml-dev libsnappy-dev libsasl2-dev libssl-dev libxxhash-dev libyaml-cpp0.8  libyaml-cpp-dev \
     libzstd-dev libssh2-1-dev netbase python3-dev python3-jinja2 python3-venv python3-yaml \
-    ragel yasm zlib1g-dev \
+    ragel yasm zlib1g-dev liblzma-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV CC=/usr/bin/clang

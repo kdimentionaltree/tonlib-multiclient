@@ -21,6 +21,8 @@ set(TON_HTTP_API_CPP_SOURCE
     handler_api_v2.h
     tonlib_postprocessor.cpp
         utils.hpp
+        tvm_utils.h
+        tvm_utils.cpp
 )
 
 add_executable(${PROJECT_NAME} ${TON_HTTP_API_CPP_SOURCE})

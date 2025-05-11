@@ -12,6 +12,6 @@ services:
       - static-config
 secrets:
   ton-global-config:
-    file: private/private-config.json
+    file: ${TON_BLOCKCHAIN_CONFIG_PATH:-private/private-config.json}
   static-config:
-    file: config/static_config_compose.yaml
+    file: ${TON_SERVICE_CONFIG_PATH:-config/static_config_compose.yaml}

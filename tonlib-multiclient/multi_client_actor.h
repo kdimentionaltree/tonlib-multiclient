@@ -117,28 +117,40 @@ private:
 
 template <typename T>
 void MultiClientActor::send_request(Request<T> request, td::Promise<typename T::ReturnType> promise) {
-  auto worker_indices = select_workers(request.parameters);
-  if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error(-3, "no workers available (" + request.parameters.to_string() + ")"));
-    return;
+  SessionPtr session;
+  if (request.session) {
+    session = request.session;
+  } else {
+    auto r_session = get_session_impl(request.parameters, nullptr);
+    if (r_session.is_error()) {
+      promise.set_error(r_session.move_as_error_prefix("failed to get session: "));
+      return;
+    }
+    session = r_session.move_as_ok();
   }
 
   auto multi_promise = PromiseSuccessAny<typename T::ReturnType>(std::move(promise));
-  for (auto worker_index : worker_indices) {
+  for (auto worker_index : session->active_workers()) {
     send_worker_request<T>(worker_index, request.request_creator(), multi_promise.get_promise());
   }
 }
 
 template <typename T>
 void MultiClientActor::send_request_function(RequestFunction<T> request, td::Promise<typename T::ReturnType> promise) {
-  auto worker_indices = select_workers(request.parameters);
-  if (worker_indices.empty()) {
-    promise.set_error(td::Status::Error(-3, "no workers available (" + request.parameters.to_string() + ")"));
-    return;
+  SessionPtr session;
+  if (request.session) {
+    session = request.session;
+  } else {
+    auto r_session = get_session_impl(request.parameters, nullptr);
+    if (r_session.is_error()) {
+      promise.set_error(r_session.move_as_error_prefix("failed to get session: "));
+      return;
+    }
+    session = r_session.move_as_ok();
   }
 
   auto multi_promise = PromiseSuccessAny<typename T::ReturnType>(std::move(promise));
-  for (auto worker_index : worker_indices) {
+  for (auto worker_index : session->active_workers()) {
     send_worker_request_function<T>(worker_index, request.request_creator(), multi_promise.get_promise());
   }
 }

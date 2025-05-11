@@ -1,14 +1,16 @@
 #include "handler_api_v2.h"
 
 #include <ranges>
-#include "tl/tl_json.h"
+
 #include "auto/tl/tonlib_api.h"
 #include "auto/tl/tonlib_api_json.h"
+#include "openapi/openapi_page.hpp"
 #include "td/utils/JsonBuilder.h"
+#include "tl/tl_json.h"
+#include "tvm_utils.h"
 #include "userver/components/component_context.hpp"
 #include "userver/http/common_headers.hpp"
 #include "userver/logging/log.hpp"
-#include "openapi/openapi_page.hpp"
 #include "utils.hpp"
 
 namespace ton_http::handlers {
@@ -17,7 +19,8 @@ std::string ApiV2Handler::HandleRequestThrow(
 ) const {
   TonlibApiRequest req;
   req.http_method = request.GetMethodStr();
-  req.ton_api_method = request.GetPathArg("ton_api_method");
+  auto ton_api_method_case_sensitive = request.GetPathArg("ton_api_method");
+  std::ranges::copy(std::views::transform(ton_api_method_case_sensitive, ::tolower), std::back_inserter(req.ton_api_method));
   for (auto& name : request.ArgNames()) {
     req.SetArg(name, request.GetArg(name));
   }
@@ -58,6 +61,33 @@ std::string ApiV2Handler::HandleRequestThrow(
     return openapi::GetOpenApiJson();
   }
 
+  if (req.ton_api_method == "jsonrpc") {
+    TonlibApiRequest req2;
+    req2.http_method = req.http_method;
+    req2.ton_api_method = req.GetArg("method");
+
+    auto body = userver::formats::json::FromString(req.GetArg("params"));
+    for (auto it = body.begin(); it != body.end(); ++it) {
+      std::string value;
+      if (it->IsArray() || it->IsObject()) {
+        value = ToString(*it);
+      }
+      if (it->IsString()) {
+        value = it->As<std::string>();
+      }
+      if (it->IsInt()) {
+        value = std::to_string(it->As<int>());
+      }
+      if (it->IsBool()) {
+        value = std::to_string(it->As<bool>());
+      }
+
+      LOG_INFO() << "jsonRPC Arg: " << it.GetName() << " Value: " << value;
+      req2.SetArg(it.GetName(), std::move(value));
+    }
+    req = req2;
+  }
+
   // call method
   auto res = HandleTonlibRequest(req);
 
@@ -69,7 +99,12 @@ std::string ApiV2Handler::HandleRequestThrow(
     if (res.result) {
       response["result"] = userver::formats::json::FromString(td::json_encode<td::string>(td::ToJson(res.result)));
     } else if (res.result_str.has_value()) {
-      response["result"] = userver::formats::json::FromString(res.result_str.value());
+      try {
+        response["result"] = userver::formats::json::FromString(res.result_str.value());
+      } catch (const std::exception& e) {
+        LOG_ERROR() << "Failed to parse result_str: " << e.what();
+        response["result"] = res.result_str.value();
+      }
     } else {
       response["ok"] = false;
       response["error"] = "empty response";
@@ -452,9 +487,64 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::raw_sendMessageReturnHash, boc, nullptr);
     auto result = core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
     if (!result.is_ok && result.error.has_value()) {
-      result.error = td::Status::Error(400, result.error->message());
+      result.error = td::Status::Error(200, result.error->message());
     }
     return std::move(result);
+  }
+
+  if (ton_api_method == "rungetmethod") {
+    auto address = request.GetArg("address");
+    auto method = request.GetArg("method");
+    auto stack = request.GetArg("stack");
+    auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    auto archival = utils::stringToBool(request.GetArg("archival"));
+
+    auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::runGetMethod, address, method, stack, seqno, archival, nullptr);
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_runGetMethod, std::move(res), std::move(session));
+  }
+
+  if (ton_api_method == "unpackaddress") {
+    auto address = request.GetArg("address");
+    auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::unpackAddress, address, nullptr);
+    if (res.is_error()) {
+      auto error = res.move_as_error();
+      return core::TonlibWorkerResponse::from_error_string(error.message().str(), error.code(), std::move(session));
+    }
+    return core::TonlibWorkerResponse::from_result_string(res.move_as_ok(), std::move(session));
+  }
+
+  if (ton_api_method == "packaddress") {
+    auto address = request.GetArg("address");
+    auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::packAddress, address, nullptr);
+    if (res.is_error()) {
+      auto error = res.move_as_error();
+      return core::TonlibWorkerResponse::from_error_string(error.message().str(), error.code(), std::move(session));
+    }
+    return core::TonlibWorkerResponse::from_result_string(res.move_as_ok(), std::move(session));
+  }
+
+  if (ton_api_method == "estimatefee") {
+    auto address = request.GetArg("address");
+    auto body = request.GetArg("body");
+    auto init_code = request.GetArg("init_code");
+    auto init_data = request.GetArg("init_data");
+    auto ignore_chksig = utils::stringToBool(request.GetArg("ignore_chksig"));
+
+    if (address.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("body is required", 422, nullptr);
+    }
+    if (body.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("body is required", 422, nullptr);
+    }
+    if (!ignore_chksig.has_value()) {
+      ignore_chksig = true;
+    }
+    auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::queryEstimateFees, address, body, init_code, init_data, ignore_chksig.value(), nullptr);
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+  }
+
+  if (ton_api_method == "healthcheck") {
+    return core::TonlibWorkerResponse::from_result_string("{}", nullptr);
   }
 
   return {false, nullptr, std::nullopt,

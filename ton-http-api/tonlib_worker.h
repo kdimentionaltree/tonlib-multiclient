@@ -28,6 +28,16 @@ struct ConsensusBlockResult {
   [[nodiscard]] std::string to_json_string() const;
 };
 
+struct RunGetMethodResult {
+  tonlib_api::smc_runGetMethod::ReturnType result;
+  tonlib_api::smc_getRawFullAccountState::ReturnType state;
+
+  [[nodiscard]] std::string to_json_string() const;
+};
+
+// runGetMethod stack tools
+td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> parse_stack(const std::string& stack);
+
 // TonlibWorker
 struct TonlibWorkerResponse {
   bool is_ok{false};
@@ -185,6 +195,31 @@ public:
   Result<tonlib_api::raw_sendMessageReturnHash::ReturnType> raw_sendMessageReturnHash(
     const std::string& boc,
     multiclient::SessionPtr session = nullptr) const;
+
+  Result<tonlib_api::smc_load::ReturnType> loadContract(
+    const std::string& address,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
+
+  Result<RunGetMethodResult> runGetMethod(
+    const std::string& address,
+    const std::string& method_name,
+    const std::string& stack,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
+
+  Result<tonlib_api::query_estimateFees::ReturnType> queryEstimateFees(
+    const std::string& account_address,
+    const std::string& body,
+    const std::string& init_code = "",
+    const std::string& init_data = "",
+    bool ignore_chksig = true,
+    multiclient::SessionPtr session = nullptr
+  ) const;
 
 private:
   multiclient::MultiClient tonlib_;

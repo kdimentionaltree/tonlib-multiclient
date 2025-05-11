@@ -26,6 +26,7 @@ public:
 
   std::string to_string() const {
     std::stringstream res;
+    res << std::time(nullptr);
     res << ":";
     bool first = true;
     for (auto& worker : active_workers_) {

@@ -4,6 +4,9 @@ components_manager:
       worker_threads: 16
     fs-task-processor:
       worker_threads: 2
+    monitor-task-processor:
+      thread_name: monitor_thread
+      worker_threads: 1
     tonlib-task-processor:
       thread_name: tonlib_thread
       worker_threads: 16
@@ -13,6 +16,12 @@ components_manager:
       listener:
         port: 8877
         task_processor: main-task-processor
+      listener-monitor:
+        port: 8878
+        connection:
+          in_buffer_size: 32768
+          requests_queue_size_threshold: 100
+        task_processor: monitor-task-processor
     logging:
       fs-task-processor: fs-task-processor
       loggers:
@@ -25,6 +34,11 @@ components_manager:
       keystore: /tmp/keystore/
       threads: 16
       task_processor: tonlib-task-processor
+    handler-server-monitor:
+      path: /statistics
+      method: GET
+      task_processor: main-task-processor
+      format: json
     handler-api-v2:
       path: /api/v2/{ton_api_method}
       method: GET,POST

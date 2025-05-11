@@ -19,7 +19,7 @@ struct RequestParameters {
   RequestMode mode = RequestMode::Single;
   std::optional<std::vector<size_t>> lite_server_indexes = std::nullopt;
   std::optional<size_t> clients_number = std::nullopt;
-  bool archival = false;
+  std::optional<bool> archival = false;
 
   bool are_valid() const {
     if (mode == RequestMode::Single) {
@@ -36,7 +36,7 @@ struct RequestParameters {
 
   std::string to_string() const {
     std::stringstream ss;
-    ss << "archival=" << archival;
+    ss << "archival=" << (archival.has_value() ? archival.value() : false);
     if (clients_number.has_value()) {
       ss << " clients_number=" << clients_number.value();
     }
