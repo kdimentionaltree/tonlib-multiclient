@@ -4,6 +4,7 @@
 
 #include "auto/tl/tonlib_api.h"
 #include "auto/tl/tonlib_api_json.h"
+#include "http/http.h"
 #include "openapi/openapi_page.hpp"
 #include "td/utils/JsonBuilder.h"
 #include "tl/tl_json.h"
@@ -93,6 +94,7 @@ std::string ApiV2Handler::HandleRequestThrow(
 
   // prepare response
   request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
+  request.GetHttpResponse().SetStatus(userver::server::http::HttpStatus(res.is_ok ? 200 : res.error->code()));
   auto response = userver::formats::json::ValueBuilder();
   response["ok"] = res.is_ok;
   if (res.is_ok) {
