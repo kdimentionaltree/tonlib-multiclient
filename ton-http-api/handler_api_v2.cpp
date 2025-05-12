@@ -94,7 +94,10 @@ std::string ApiV2Handler::HandleRequestThrow(
 
   // prepare response
   request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
-  request.GetHttpResponse().SetStatus(userver::server::http::HttpStatus(res.is_ok ? 200 : res.error->code()));
+  auto code = res.is_ok ? 200 : res.error->code();
+  if (code == 0) { code = 500; }
+  if (code == -3) { code = 500; }
+  request.GetHttpResponse().SetStatus(userver::server::http::HttpStatus(code));
   auto response = userver::formats::json::ValueBuilder();
   response["ok"] = res.is_ok;
   if (res.is_ok) {
