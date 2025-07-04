@@ -1406,7 +1406,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   }
   auto smc_info = r_smc_info.move_as_ok();
 
-  constexpr std::string method_name = "get_jetton_data";
+  std::string method_name = "get_jetton_data";
   auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
     .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
     .request_creator = [id_ = smc_info->id_, method_ = method_name] {
@@ -1483,7 +1483,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   }
   auto smc_info = r_smc_info.move_as_ok();
 
-  constexpr std::string method_name = "get_wallet_data";
+  std::string method_name = "get_wallet_data";
   auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
     .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
     .request_creator = [id_ = smc_info->id_, method_ = method_name] {
@@ -1671,7 +1671,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCol
   }
   auto smc_info = r_smc_info.move_as_ok();
 
-  constexpr std::string method_name = "get_collection_data";
+  std::string method_name = "get_collection_data";
   auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
     .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
     .request_creator = [id_ = smc_info->id_, method_ = method_name] {
@@ -1729,7 +1729,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
   }
   auto smc_info = r_smc_info.move_as_ok();
 
-  constexpr std::string method_name = "get_nft_data";
+  std::string method_name = "get_nft_data";
   auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
     .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
     .request_creator = [id_ = smc_info->id_, method_ = method_name] {
