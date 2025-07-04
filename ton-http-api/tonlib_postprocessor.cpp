@@ -494,6 +494,7 @@ TonlibWorkerResponse TonlibPostProcessor::process_runGetMethod(
 
   ValueBuilder builder(FromString(result.to_json_string()));
   builder["stack"] = tvm::serialize_tvm_stack(result.result->stack_);
-  return TonlibWorkerResponse{true, nullptr, ToString(builder.ExtractValue()), std::nullopt, std::move(session)};
+  auto ress = ToString(builder.ExtractValue());
+  return TonlibWorkerResponse{true, nullptr, ress, std::nullopt, std::move(session)};
 }
 }  // namespace ton_http::core

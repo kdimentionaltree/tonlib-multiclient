@@ -19,7 +19,7 @@ struct RequestParameters {
   RequestMode mode = RequestMode::Single;
   std::optional<std::vector<size_t>> lite_server_indexes = std::nullopt;
   std::optional<size_t> clients_number = std::nullopt;
-  std::optional<bool> archival = false;
+  std::optional<bool> archival = std::nullopt;
 
   bool are_valid() const {
     if (mode == RequestMode::Single) {

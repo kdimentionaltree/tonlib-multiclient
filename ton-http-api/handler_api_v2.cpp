@@ -84,7 +84,7 @@ std::string ApiV2Handler::HandleRequestThrow(
       }
 
       LOG_INFO() << "jsonRPC Arg: " << it.GetName() << " Value: " << value;
-      req2.SetArg(it.GetName(), std::move(value));
+      req2.SetArg(it.GetName(), value);
     }
     req = req2;
   }
@@ -97,7 +97,7 @@ std::string ApiV2Handler::HandleRequestThrow(
   auto code = res.is_ok ? 200 : res.error->code();
   if (code == 0) { code = 500; }
   if (code == -3) { code = 500; }
-  request.GetHttpResponse().SetStatus(userver::server::http::HttpStatus(code));
+  request.GetHttpResponse().SetStatus(static_cast<userver::server::http::HttpStatus>(code));
   auto response = userver::formats::json::ValueBuilder();
   response["ok"] = res.is_ok;
   if (res.is_ok) {
@@ -199,6 +199,27 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     auto res_str = res.move_as_ok().to_json_string();
     return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session));
   }
+
+  if (ton_api_method == "gettokendata") {
+    auto address = request.GetArg("address");
+    auto skip_verification = utils::stringToBool(request.GetArg("skip_verification"));
+    auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
+    auto archival = utils::stringToBool(request.GetArg("archival"));
+    if (address.empty()) {
+      return core::TonlibWorkerResponse::from_error_string("address is required", 422, nullptr);
+    }
+    if (!skip_verification.has_value()) {
+      skip_verification = false;
+    }
+    auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getTokenData, address, skip_verification.value(), seqno, archival, nullptr);
+    if (res.is_error()) {
+      auto error = res.move_as_error();
+      return core::TonlibWorkerResponse::from_error_string(error.to_string(), error.code(), std::move(session));
+    }
+    auto res_str = res.move_as_ok()->to_json_string();
+    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session));
+  }
+
   if (ton_api_method == "detecthash") {
     auto hash = request.GetArg("hash");
     if (hash.empty()) {

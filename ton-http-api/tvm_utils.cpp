@@ -2,6 +2,8 @@
 
 #include "auto/tl/tonlib_api.hpp"
 #include "auto/tl/tonlib_api_json.h"
+#include "tl/tl_json.h"
+#include "block/block.h"
 
 #include "common/refint.h"
 #include "overlay/overlay-broadcast.hpp"
@@ -12,6 +14,8 @@
 #include "vm/boc.h"
 #include "vm/cells/CellSlice.h"
 
+
+using namespace ton;
 
 std::string to_hex_string_with_prefix(td::RefInt256& val) {
   auto res = val->to_hex_string();
@@ -151,13 +155,14 @@ userver::formats::json::Value ton_http::tvm::serialize_cell(td::Ref<vm::Cell>& c
   using namespace userver::formats::json;
   ValueBuilder builder;
 
-  auto cs = vm::load_cell_slice(cell);
+  bool is_special = false;
+  auto cs = vm::load_cell_slice_special(cell, is_special);
   auto r_ls = cell->load_cell();
   if (r_ls.is_error()) {
     builder["error"] = r_ls.move_as_error().to_string();
     return builder.ExtractValue();
   }
-  auto ls = r_ls.move_as_ok();;
+  auto ls = r_ls.move_as_ok();
   builder["data"]["b64"] = td::base64_encode(serialize_data_cell(ls.data_cell));
   builder["data"]["len"] = ls.data_cell->get_bits();
   builder["refs"] = FromString("[]");
@@ -166,14 +171,129 @@ userver::formats::json::Value ton_http::tvm::serialize_cell(td::Ref<vm::Cell>& c
   while (cs.have_refs(1)) {
     cs.advance(1);
     auto loc = cs.fetch_ref();
-    LOG(ERROR) << "Fetched ref!";
     builder["refs"].PushBack(serialize_cell(loc));
   }
-  LOG(ERROR) << "OK!";
-
   return builder.ExtractValue();
 }
 
+td::Result<std::string> ton_http::tvm::address_from_cell(std::string data) {
+  auto r_cell = vm::std_boc_deserialize(std::move(data), true, false);
+  if (r_cell.is_error()) {
+    return td::Status::Error(500, r_cell.move_as_error().to_string());
+  }
+  auto cell = r_cell.move_as_ok();
+  auto cs = vm::load_cell_slice(cell);
+  switch ((unsigned)cs.prefetch_ulong(2)) {
+    case 0:
+      return "";
+    case 1:
+      return td::Status::Error(500, "addr_ext is not supported");
+    case 2: {
+      cs.advance(2);
+      if (cs.prefetch_ulong(1)) {
+        return td::Status::Error(500, "anycast is not supported");
+      }
+      cs.advance(1);
+
+      auto workchain_id = cs.fetch_long(8);
+      auto addr = cs.fetch_bits(256);
+      auto address = block::StdAddress{static_cast<ton::WorkchainId>(workchain_id), addr.bits(), true, false};
+      return address.rserialize(true);
+    }
+    case 3:
+      return td::Status::Error(500, "addr_var is not supported");
+  }
+  UNREACHABLE();
+}
+td::Result<std::string> ton_http::tvm::address_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry) {
+  std::string data;
+  if (entry->get_id() == tonlib_api::tvm_stackEntryCell::ID) {
+    auto& entry_cell = static_cast<tonlib_api::tvm_stackEntryCell&>(*entry);
+    data = entry_cell.cell_->bytes_;
+  } else if (entry->get_id() == tonlib_api::tvm_stackEntrySlice::ID) {
+    auto& entry_slice = static_cast<tonlib_api::tvm_stackEntrySlice&>(*entry);
+    data = entry_slice.slice_->bytes_;
+  }
+
+  return address_from_cell(data);
+}
+
+
+td::Result<std::string> ton_http::tvm::number_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry) {
+  if (entry->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return td::Status::Error(500, "stackEntryNumber expected");
+  }
+   return static_cast<const tonlib_api::tvm_stackEntryNumber&>(*entry).number_->number_;
+}
+
+
+td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_http::tvm::parse_stack(const std::string& stack_string) {
+  std::string stack_str = stack_string;  // not sure that it won't corrupt the original string
+  TRY_RESULT(json_value, td::json_decode(td::MutableSlice(stack_str)));
+  if (json_value.type() != td::JsonValue::Type::Array) {
+    return td::Status::Error(422, "Invalid stack format: array expected");
+  }
+  auto &json_array = json_value.get_array();
+
+  std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>> stack;
+  stack.reserve(json_array.size());
+  for (auto &value : json_array) {
+    if (value.type() != td::JsonValue::Type::Array) {
+      return td::Status::Error(422, "Invalid stack format: array expected");
+    }
+    auto &array = value.get_array();
+    if (array.size() != 2) {
+      return td::Status::Error(422, "Invalid stack entry format: array of exact 2 elemets expected");
+    }
+    auto tp = array[0].get_string().str();
+    auto &val = array[1];
+    if (tp == "int" || tp == "integer" || tp == "num" || tp == "number") {
+      std::string int_value;
+      if (val.type() == td::JsonValue::Type::Number) {
+        int_value = val.get_number().str();
+      } else if (val.type() == td::JsonValue::Type::String) {
+        auto parsed_int = td::string_to_int256(val.get_string().str());
+        if (parsed_int.is_null()) {
+          td::StringBuilder sb;
+          sb << "Invalid stack entry format: invalid integer value " << val.get_string();
+          return td::Status::Error(422, sb.as_cslice());
+        }
+        int_value = parsed_int->to_dec_string();
+      }
+      auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntryNumber>(
+        tonlib_api::make_object<tonlib_api::tvm_numberDecimal>(int_value)
+      );
+      stack.push_back(std::move(entry));
+    } else if (tp == "tvm.Cell" || tp == "tvm.Slice") {
+      if (val.type() != td::JsonValue::Type::String) {
+        return td::Status::Error(422, "Invalid stack entry format: base64 encoded string expected");
+      }
+      auto r_bytes = td::base64_decode(val.get_string());
+      if (r_bytes.is_error()) {
+        td::StringBuilder sb;
+        sb << "Invalid stack entry format: invalid base64 encoded string: " << r_bytes.move_as_error();
+        return td::Status::Error(422, sb.as_cslice());
+      }
+      auto bytes = r_bytes.move_as_ok();
+      if (tp == "tvm.Cell") {
+        auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntryCell>(
+          tonlib_api::make_object<tonlib_api::tvm_cell>(bytes)
+        );
+        stack.push_back(std::move(entry));
+      } else if (tp == "tvm.Slice") {
+        auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntrySlice>(
+          tonlib_api::make_object<tonlib_api::tvm_slice>(bytes)
+        );
+        stack.push_back(std::move(entry));
+      }
+    } else {
+      td::StringBuilder sb;
+      sb << "Invalid stack entry format: invalid type " << tp;
+      return td::Status::Error(422, sb.as_cslice());
+    }
+  }
+  return std::move(stack);
+}
 
 userver::formats::json::Value ton_http::tvm::serialize_tvm_stack(
     std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>& tvm_stack
@@ -200,13 +320,15 @@ userver::formats::json::Value ton_http::tvm::serialize_tvm_stack(
       },
       [&](tonlib_api::tvm_stackEntryTuple& val) {
         entry_builder.PushBack("tuple");
+        entry_builder.PushBack(FromString(td::json_encode<td::string>(td::ToJson(val.tuple_))));
       },
       [&](tonlib_api::tvm_stackEntryList& val) {
         entry_builder.PushBack("list");
+        entry_builder.PushBack(FromString(td::json_encode<td::string>(td::ToJson(val.list_))));
       },
       [&](tonlib_api::tvm_stackEntryUnsupported& val) {
         entry_builder.PushBack("unsupported");
-        entry_builder.PushBack("");
+        entry_builder.PushBack(FromString("{}"));
       }
       ));
     builder.PushBack(entry_builder.ExtractValue());

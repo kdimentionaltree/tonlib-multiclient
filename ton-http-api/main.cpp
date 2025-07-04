@@ -8,7 +8,7 @@
 #include "tonlib_component.h"
 
 int main(int argc, char* argv[]) {
-  tonlib::Logging::set_verbosity_level(1);
+  tonlib::Logging::set_verbosity_level(3);
 
   auto component_list = userver::components::MinimalServerComponentList();
   component_list.Append<ton_http::core::TonlibComponent>();

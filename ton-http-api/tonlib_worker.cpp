@@ -2,6 +2,7 @@
 
 #include "userver/formats/json.hpp"
 #include "utils.hpp"
+#include "tvm_utils.h"
 
 namespace ton_http::core {
 
@@ -70,72 +71,72 @@ std::string RunGetMethodResult::to_json_string() const {
   return std::move(ToString(builder.ExtractValue()));
 }
 
-td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> parse_stack(const std::string& stack_string) {
-  std::string stack_str = stack_string;  // not sure that it won't corrupt the original string
-  TRY_RESULT(json_value, td::json_decode(td::MutableSlice(stack_str)));
-  if (json_value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(422, "Invalid stack format: array expected");
-  }
-  auto &json_array = json_value.get_array();
+std::string TokenDataResult::to_json_string() const {
+  return "{\"error\": \"why?\"}";
+}
 
-  std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>> stack;
-  stack.reserve(json_array.size());
-  for (auto &value : json_array) {
-    if (value.type() != td::JsonValue::Type::Array) {
-      return td::Status::Error(422, "Invalid stack format: array expected");
-    }
-    auto &array = value.get_array();
-    if (array.size() != 2) {
-      return td::Status::Error(422, "Invalid stack entry format: array of exact 2 elemets expected");
-    }
-    auto tp = array[0].get_string().str();
-    auto &val = array[1];
-    if (tp == "int" || tp == "integer" || tp == "num" || tp == "number") {
-      std::string int_value;
-      if (val.type() == td::JsonValue::Type::Number) {
-        int_value = val.get_number().str();
-      } else if (val.type() == td::JsonValue::Type::String) {
-        auto parsed_int = td::string_to_int256(val.get_string().str());
-        if (parsed_int.is_null()) {
-          td::StringBuilder sb;
-          sb << "Invalid stack entry format: invalid integer value " << val.get_string();
-          return td::Status::Error(422, sb.as_cslice());
-        }
-        int_value = parsed_int->to_dec_string();
-      }
-      auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntryNumber>(
-        tonlib_api::make_object<tonlib_api::tvm_numberDecimal>(int_value)
-      );
-      stack.push_back(std::move(entry));
-    } else if (tp == "tvm.Cell" || tp == "tvm.Slice") {
-      if (val.type() != td::JsonValue::Type::String) {
-        return td::Status::Error(422, "Invalid stack entry format: base64 encoded string expected");
-      }
-      auto r_bytes = td::base64_decode(val.get_string());
-      if (r_bytes.is_error()) {
-        td::StringBuilder sb;
-        sb << "Invalid stack entry format: invalid base64 encoded string: " << r_bytes.move_as_error();
-        return td::Status::Error(422, sb.as_cslice());
-      }
-      auto bytes = r_bytes.move_as_ok();
-      if (tp == "tvm.Cell") {
-        auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntryCell>(
-          tonlib_api::make_object<tonlib_api::tvm_cell>(bytes)
-        );
-        stack.push_back(std::move(entry));
-      } else if (tp == "tvm.Slice") {
-        auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntrySlice>(
-          tonlib_api::make_object<tonlib_api::tvm_slice>(bytes)
-        );
-        stack.push_back(std::move(entry));
-      }
-    } else {
-      td::StringBuilder sb;
-      sb << "Invalid stack entry format: invalid type " << tp;
-      return td::Status::Error(422, sb.as_cslice());
-    }
+std::string JettonMasterDataResult::to_json_string() const {
+  using namespace userver::formats::json;
+
+  ValueBuilder builder;
+  builder["address"] = address_;
+  builder["contract_type"] = "jetton_master";
+  builder["total_supply"] = total_supply_;
+  builder["mintable"] = mintable_;
+  builder["admin_address"] = admin_address_;
+  builder["jetton_wallet_code"] = jetton_wallet_code_;
+  for (auto& [k, v] : jetton_content_) {
+    builder["jetton_content"][k] = v;
   }
-  return std::move(stack);
+  return std::move(ToString(builder.ExtractValue()));
+}
+
+std::string JettonWalletDataResult::to_json_string() const {
+  using namespace userver::formats::json;
+
+  ValueBuilder builder;
+  builder["address"] = address_;
+  builder["contract_type"] = "jetton_wallet";
+  builder["balance"] = balance_;
+  builder["owner"] = owner_address_;
+  builder["jetton"] = jetton_master_address_;
+  builder["jetton_wallet_code"] = jetton_wallet_code_;
+  if (mintless_is_claimed_.has_value()) {
+    builder["mintless_is_claimed"] = mintless_is_claimed_.value();
+  }
+  builder["is_validated"] = is_validated_;
+  return std::move(ToString(builder.ExtractValue()));
+}
+
+std::string NFTCollectionDataResult::to_json_string() const {
+  using namespace userver::formats::json;
+
+  ValueBuilder builder;
+  builder["address"] = address_;
+  builder["contract_type"] = "nft_collection";
+  builder["next_item_index"] = next_item_index_;
+  builder["owner_address"] = owner_address_;
+  for (auto& [k, v] : collection_content_) {
+    builder["collection_content"][k] = v;
+  }
+  return std::move(ToString(builder.ExtractValue()));
+}
+
+std::string NFTItemDataResult::to_json_string() const {
+  using namespace userver::formats::json;
+
+  ValueBuilder builder;
+  builder["address"] = address_;
+  builder["contract_type"] = "nft_item";
+  builder["init"] = init_;
+  builder["index"] = index_;
+  builder["owner_address"] = owner_address_;
+  builder["collection_address"] = collection_address_;
+  for (auto& [k, v] : content_) {
+    builder["content"][k] = v;
+  }
+
+  return std::move(ToString(builder.ExtractValue()));
 }
 
 TonlibWorker::Result<ConsensusBlockResult> TonlibWorker::getConsensusBlock(multiclient::SessionPtr session) const {
@@ -174,13 +175,70 @@ TonlibWorker::Result<std::string> TonlibWorker::unpackAddress(const std::string&
     return {result.to_raw_form(true), session};
   }
 }
-TonlibWorker::Result<DetectHashResult> TonlibWorker::detectHash(const std::string& hash, multiclient::SessionPtr session) const {
+TonlibWorker::Result<DetectHashResult> TonlibWorker::detectHash(
+    const std::string& hash, multiclient::SessionPtr session
+) const {
   auto raw_hash = utils::stringToHash(hash);
   if (!raw_hash.has_value()) {
     return {td::Status::Error("Invalid hash"), session};
   }
   DetectHashResult result{raw_hash.value()};
   return {std::move(result), session};
+}
+
+TonlibWorker::Result<TokenDataResultPtr> TonlibWorker::getTokenData(
+  const std::string& address,
+  bool skip_verification,
+  std::optional<ton::BlockSeqno> seqno,
+  std::optional<bool> archival,
+    multiclient::SessionPtr session
+) const {
+  auto [r_jetton_master, _s1] = checkJettonMaster(address, skip_verification, seqno, archival, session);
+  auto [r_jetton_wallet, _s2] = checkJettonWallet(address, skip_verification, seqno, archival, session);
+  auto [r_nft_collection, _s3] = checkNFTCollection(address, skip_verification, seqno, archival, session);
+  auto [r_nft_item, _s4] = checkNFTItem(address, skip_verification, seqno, archival, session);
+
+  if (r_jetton_master.is_ok()) {
+    auto data = r_jetton_master.move_as_ok();
+    if (data) {
+      LOG(ERROR) << "1";
+      return {std::move(data), std::move(session)};
+    }
+  } else {
+    LOG(ERROR) << "Jetton master: " << r_jetton_master.move_as_error();
+  }
+  if (r_jetton_wallet.is_ok()) {
+    auto data = r_jetton_wallet.move_as_ok();
+    if (data) {
+      LOG(ERROR) << "2";
+      return {std::move(data), std::move(session)};
+    }
+  } else {
+    LOG(ERROR) << "Jetton wallet: " << r_jetton_wallet.move_as_error();
+  }
+
+  if (r_nft_collection.is_ok()) {
+    auto data = r_nft_collection.move_as_ok();
+    if (data) {
+      LOG(ERROR) << "3";
+      return {std::move(data), std::move(session)};
+    }
+  } else {
+    LOG(ERROR) << "NFT collection: " << r_nft_collection.move_as_error();
+  }
+
+  if (r_nft_item.is_ok()) {
+    auto data = r_nft_item.move_as_ok();
+    if (data) {
+      LOG(ERROR) << "4";
+      return {std::move(data), std::move(session)};
+    }
+  } else {
+    LOG(ERROR) << "NFT item: " << r_nft_item.move_as_error();
+  }
+
+  LOG(ERROR) << "5";
+  return {td::Status::Error(409, "Smart contract is not Jetton or NFT"), std::move(session)};
 }
 TonlibWorker::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> TonlibWorker::getMasterchainInfo(multiclient::SessionPtr session) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getMasterchainInfo>{
@@ -1231,26 +1289,26 @@ TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     return {r_smc_info.move_as_error(), session};
   }
   auto smc_info = r_smc_info.move_as_ok();
-  auto r_stack = parse_stack(stack);
+  auto r_stack = tvm::parse_stack(stack);
   if (r_stack.is_error()) {
     return {r_stack.move_as_error(), session};
   }
   auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
-      .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
-      .request_creator =
-          [id_ = smc_info->id_, method_name_ = method_name, stack_str = stack] {
-            auto method_int = td::string_to_int256(method_name_);
-            auto stack = parse_stack(stack_str).move_as_ok();
-            if (method_int.is_null()) {
-              return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(
-                  id_, tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_name_), std::move(stack)
-              );
-            }
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator =
+        [id_ = smc_info->id_, method_name_ = method_name, stack_str = stack] {
+          auto method_int = td::string_to_int256(method_name_);
+          auto stack = tvm::parse_stack(stack_str).move_as_ok();
+          if (method_int.is_null()) {
             return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(
-                id_, tonlib_api::make_object<tonlib_api::smc_methodIdNumber>(method_int->to_long()), std::move(stack)
+                id_, tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_name_), std::move(stack)
             );
-          },
-      .session = session
+          }
+          return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(
+              id_, tonlib_api::make_object<tonlib_api::smc_methodIdNumber>(method_int->to_long()), std::move(stack)
+          );
+    },
+  .session = session
   };
   auto [result, new_session_2] = send_request_function(std::move(request), false);
   session = std::move(new_session_2);
@@ -1259,11 +1317,11 @@ TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
   }
 
   auto state_request = multiclient::RequestFunction<tonlib_api::smc_getRawFullAccountState>{
-      .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
-      .request_creator =
-          [id_ = smc_info->id_] { return tonlib_api::make_object<tonlib_api::smc_getRawFullAccountState>(id_); },
-      .session = session
-  };
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator =
+        [id_ = smc_info->id_] { return tonlib_api::make_object<tonlib_api::smc_getRawFullAccountState>(id_); },
+    .session = session
+};
   auto [state_result, new_session_3] = send_request_function(std::move(state_request), false);
   session = std::move(new_session_3);
   if (state_result.is_error()) {
@@ -1274,6 +1332,7 @@ TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
 
   return {RunGetMethodResult{result.move_as_ok(), state_result.move_as_ok()}, session};
 }
+
 TonlibWorker::Result<std::unique_ptr<tonlib_api::query_fees>> TonlibWorker::queryEstimateFees(
     const std::string& account_address,
     const std::string& body,
@@ -1301,15 +1360,14 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::query_fees>> TonlibWorker::quer
   auto init_data_bin = r_init_data.move_as_ok();
 
   auto request = multiclient::RequestFunction<tonlib_api::raw_createQuery>{
-    .parameters = {.mode = multiclient::RequestMode::Single, .archival = std::nullopt},
-    .request_creator = [addr_ = account_address, init_code_ = init_code_bin, init_data_ = init_data_bin, body_ = body_bin] {
-      return tonlib_api::make_object<tonlib_api::raw_createQuery>(
-        tonlib_api::make_object<tonlib_api::accountAddress>(addr_),
-        init_code_,
-        init_data_,
-        body_);
-    },
-    .session = session
+      .parameters = {.mode = multiclient::RequestMode::Single, .archival = std::nullopt},
+      .request_creator =
+          [addr_ = account_address, init_code_ = init_code_bin, init_data_ = init_data_bin, body_ = body_bin] {
+            return tonlib_api::make_object<tonlib_api::raw_createQuery>(
+                tonlib_api::make_object<tonlib_api::accountAddress>(addr_), init_code_, init_data_, body_
+            );
+          },
+      .session = session
   };
   auto [result, new_session] = send_request_function(std::move(request), false);
   session = std::move(new_session);
@@ -1319,11 +1377,12 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::query_fees>> TonlibWorker::quer
   auto query_info = result.move_as_ok();
 
   auto request_2 = multiclient::RequestFunction<tonlib_api::query_estimateFees>{
-    .parameters = {.mode = multiclient::RequestMode::Single, .archival = std::nullopt},
-    .request_creator = [id = query_info->id_, ignore_chksig_ = ignore_chksig] {
-      return tonlib_api::make_object<tonlib_api::query_estimateFees>(id, ignore_chksig_);
-    },
-    session = std::move(session)
+      .parameters = {.mode = multiclient::RequestMode::Single, .archival = std::nullopt},
+      .request_creator =
+          [id = query_info->id_, ignore_chksig_ = ignore_chksig] {
+            return tonlib_api::make_object<tonlib_api::query_estimateFees>(id, ignore_chksig_);
+          },
+      session = std::move(session)
   };
   auto [result_2, new_session_2] = send_request_function(std::move(request_2), false);
   session = std::move(new_session_2);
@@ -1331,5 +1390,412 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::query_fees>> TonlibWorker::quer
     return {result_2.move_as_error(), session};
   }
   return {result_2.move_as_ok(), session};
+}
+
+TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJettonMaster(
+    const std::string& address,
+    bool skip_verification,
+    std::optional<ton::BlockSeqno> seqno,
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
+) const {
+  auto [r_smc_info, new_session] = loadContract(address, seqno, archival, session);
+  session = std::move(new_session);
+  if (!r_smc_info.is_ok()) {
+    return {r_smc_info.move_as_error(), session};
+  }
+  auto smc_info = r_smc_info.move_as_ok();
+
+  constexpr std::string method_name = "get_jetton_data";
+  auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator = [id_ = smc_info->id_, method_ = method_name] {
+      return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(id_,
+        tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_),
+        std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>{});
+    },
+    .session = std::move(session)
+  };
+  auto [res, new_session_2] = send_request_function(std::move(request), false);
+  session = std::move(new_session_2);
+  if (!res.is_ok()) {
+    return {nullptr, std::move(session)};
+  }
+  auto result = res.move_as_ok();
+  if (result->exit_code_ != 0) {
+    return {nullptr, std::move(session)};
+  }
+  auto data = std::make_unique<JettonMasterDataResult>(address);
+
+  // total_supply_
+  if (result->stack_[0]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return {td::Status::Error(500, "stackEntryNumber expected at 0 position"), std::move(session)};
+  }
+  auto r_total_supply = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  if (r_total_supply.is_error()) {
+    return {r_total_supply.move_as_error(), std::move(session)};
+  }
+  data->total_supply_ = r_total_supply.move_as_ok();
+
+  // mintable_
+  if (result->stack_[1]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return {td::Status::Error(500, "stackEntryNumber expected at 1 position"), std::move(session)};
+  }
+  auto r_mintable = tvm::number_from_tvm_stack_entry(result->stack_[1]);
+  if (r_mintable.is_error()) {
+    return {r_mintable.move_as_error(), std::move(session)};
+  }
+  data->mintable_ = std::stoi(r_mintable.move_as_ok());
+
+  // admin_address_
+  if (result->stack_[2]->get_id() != tonlib_api::tvm_stackEntryCell::ID) {
+    return {td::Status::Error(500, "stackEntryCell expected at 2 position"), std::move(session)};
+  }
+  auto r_admin_address = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  if (r_admin_address.is_error()) {
+    return {r_admin_address.move_as_error(), std::move(session)};
+  }
+  data->admin_address_ = r_admin_address.move_as_ok();
+
+  // jetton_content_
+  // TODO: implement parsing
+  data->jetton_content_["type"] = "unknown";
+
+  // jetton_wallet_code_
+  if (result->stack_[4]->get_id() != tonlib_api::tvm_stackEntryCell::ID) {
+    return {td::Status::Error(500, "stackEntryCell expected at 3 position"), std::move(session)};
+  }
+  data->jetton_wallet_code_ = td::base64_encode(static_cast<const tonlib_api::tvm_stackEntryCell&>(*result->stack_[4]).cell_->bytes_);
+
+  return {std::move(data), std::move(session)};
+}
+TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJettonWallet(
+    const std::string& address,
+    bool skip_verification,
+    std::optional<ton::BlockSeqno> seqno,
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
+) const {
+  auto [r_smc_info, new_session] = loadContract(address, seqno, archival, session);
+  session = std::move(new_session);
+  if (!r_smc_info.is_ok()) {
+    return {r_smc_info.move_as_error(), session};
+  }
+  auto smc_info = r_smc_info.move_as_ok();
+
+  constexpr std::string method_name = "get_wallet_data";
+  auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator = [id_ = smc_info->id_, method_ = method_name] {
+      return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(id_,
+        tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_),
+        std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>{});
+    },
+    .session = std::move(session)
+  };
+  auto [res, new_session_2] = send_request_function(std::move(request), false);
+  session = std::move(new_session_2);
+  if (!res.is_ok()) {
+    return {nullptr, std::move(session)};
+  }
+  auto result = res.move_as_ok();
+  if (result->exit_code_ != 0) {
+    return {nullptr, std::move(session)};
+  }
+  auto data = std::make_unique<JettonWalletDataResult>(address);
+
+  // balance_
+  if (result->stack_[0]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return {td::Status::Error(500, "stackEntryNumber expected at 0 position"), std::move(session)};
+  }
+  auto r_balance = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  if (r_balance.is_error()) {
+    return {r_balance.move_as_error(), std::move(session)};
+  }
+  data->balance_ = r_balance.move_as_ok();
+
+  // owner_address_
+  if (result->stack_[1]->get_id() != tonlib_api::tvm_stackEntrySlice::ID) {
+    LOG(INFO) << "ID: " << result->stack_[1]->get_id();
+    return {td::Status::Error(500, "stackEntryCell expected at 1 position"), std::move(session)};
+  }
+
+  auto r_owner_address_ = tvm::address_from_tvm_stack_entry(result->stack_[1]);
+  if (r_owner_address_.is_error()) {
+    return {r_owner_address_.move_as_error(), std::move(session)};
+  }
+  data->owner_address_ = r_owner_address_.move_as_ok();
+
+  // jetton_master_address_
+  if (result->stack_[2]->get_id() != tonlib_api::tvm_stackEntrySlice::ID) {
+    LOG(INFO) << "ID: " << result->stack_[2]->get_id();
+    return {td::Status::Error(500, "stackEntryCell expected at 2 position"), std::move(session)};
+  }
+
+  auto r_jetton_master_address = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  if (r_jetton_master_address.is_error()) {
+    return {r_jetton_master_address.move_as_error(), std::move(session)};
+  }
+  data->jetton_master_address_ = r_jetton_master_address.move_as_ok();
+
+  // jetton_wallet_code_
+  if (result->stack_[3]->get_id() != tonlib_api::tvm_stackEntryCell::ID) {
+    return {td::Status::Error(500, "stackEntryCell expected at 3 position"), std::move(session)};
+  }
+  data->jetton_wallet_code_ = td::base64_encode(static_cast<const tonlib_api::tvm_stackEntryCell&>(*result->stack_[3]).cell_->bytes_);
+
+  if (skip_verification) {
+    return {std::move(data), std::move(session)};
+  }
+
+  // TODO: verification
+  auto [r_parent_smc_info, new_session_3] = loadContract(data->jetton_master_address_, seqno, archival, session);
+  session = std::move(new_session_3);
+  if (!r_parent_smc_info.is_ok()) {
+    return {r_parent_smc_info.move_as_error(), session};
+  }
+  auto parent_smc_info = r_parent_smc_info.move_as_ok();
+
+  // construct owner_address cell
+  auto r_owner_std_address = block::StdAddress::parse(data->owner_address_);
+  if (r_owner_std_address.is_error()) {
+    return {r_owner_std_address.move_as_error(), std::move(session)};
+  }
+  auto owner_address_std = r_owner_std_address.move_as_ok();
+
+  vm::CellBuilder anycast_cb;
+  anycast_cb.store_bool_bool(false);
+  auto anycast_cell = anycast_cb.finalize();
+  td::Ref<vm::CellSlice> anycast_cs = vm::load_cell_slice_ref(anycast_cell);
+
+  vm::CellBuilder cb;
+  block::gen::t_MsgAddressInt.pack_addr_std(cb, anycast_cs, owner_address_std.workchain, owner_address_std.addr);
+  auto r_owner_address_cell = vm::std_boc_serialize(cb.finalize());
+  if (r_owner_address_cell.is_error()) {
+    return {r_owner_address_cell.move_as_error(), std::move(session)};
+  }
+  auto owner_address_cell = r_owner_address_cell.move_as_ok().as_slice().str();
+  LOG(INFO) << "Owner address std: " << owner_address_std;
+  LOG(INFO) << "Owner address cell: " << td::base64_encode(owner_address_cell);
+
+  // call get_wallet_address on master
+  auto request_2 = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
+    .parameters = {.mode=multiclient::RequestMode::Single, .archival = archival},
+    .request_creator = [id_ = parent_smc_info->id_, owner_address_cell_ = owner_address_cell] {
+      std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>> stack;
+      auto tonlib_slice = tonlib_api::make_object<tonlib_api::tvm_slice>(owner_address_cell_);
+      auto entry = tonlib_api::make_object<tonlib_api::tvm_stackEntrySlice>(std::move(tonlib_slice));
+      stack.push_back(std::move(entry));
+      return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(
+        id_,
+        tonlib_api::make_object<tonlib_api::smc_methodIdName>("get_wallet_address"),
+        std::move(stack));
+    },
+    .session = std::move(session),
+  };
+  auto [res_2, new_session_4] = send_request_function(std::move(request_2));
+  session = std::move(new_session_4);
+  if (!res_2.is_ok()) {
+    auto error = res_2.move_as_error();
+    return {std::move(error), std::move(session)};
+  }
+  auto result_2 = res_2.move_as_ok();
+  if (result_2->exit_code_ != 0) {
+    LOG(ERROR) << "Exit code " << result_2->exit_code_ << " != 0";
+    return {nullptr, std::move(session)};
+  }
+  auto& entry = static_cast<tonlib_api::tvm_stackEntryCell&>(*(result_2->stack_[0]));
+  LOG(INFO) << "Got address in cell: " << td::base64_encode(entry.cell_->bytes_);
+
+  {
+    auto r_cell = vm::std_boc_deserialize(entry.cell_->bytes_, true, true);
+    if (r_cell.is_error()) {
+      LOG(ERROR) << "load cell failed: " << r_cell.move_as_error();
+    }
+    // te6ccgEBAQEAJAAAQ4AW+iDq6ufjgt/MXgt/cX7iXPwWGOqiQ0OU+vlAGoMXuRA=
+    // te6cckEBAQEAJAAAQ4AZHxqOGXySrVi9jb4K0H8twOHNPsDa7RRMlejtyfOKmvAVy/1x
+    auto cell = r_cell.move_as_ok();
+    auto cs = vm::load_cell_slice_ref(cell);
+    auto tag = block::gen::MsgAddressInt().get_tag(*cs);
+    if (tag < 0) {
+      LOG(ERROR) << td::Status::Error("Failed to read MsgAddressInt tag");
+    }
+    if (tag != block::gen::MsgAddressInt::addr_std) {
+      LOG(ERROR) << "non addr_std";
+    }
+    block::gen::MsgAddressInt::Record_addr_std addr;
+    if (!tlb::csr_unpack(cs, addr)) {
+      LOG(ERROR) << td::Status::Error("Failed to unpack MsgAddressInt");
+    }
+    LOG(ERROR) << block::StdAddress(addr.workchain_id, addr.address);
+  }
+
+  auto r_wallet_address_from_master = tvm::address_from_tvm_stack_entry(result_2->stack_[0]);
+  if (r_wallet_address_from_master.is_error()) {
+    return {r_wallet_address_from_master.move_as_error(), std::move(session)};
+  }
+  auto wallet_address_from_master = r_wallet_address_from_master.move_as_ok();
+
+  // check addresses
+  auto r_address_std = block::StdAddress::parse(address);
+  if (r_address_std.is_error()) {
+    return {r_address_std.move_as_error(), std::move(session)};
+  }
+  auto address_std = r_address_std.move_as_ok();
+
+  auto r_address_from_master_std = block::StdAddress::parse(wallet_address_from_master);
+  if (r_address_from_master_std.is_error()) {
+    return {r_address_from_master_std.move_as_error(), std::move(session)};
+  }
+  auto address_from_master_std = r_address_from_master_std.move_as_ok();
+
+  LOG(INFO) << "address: " << address_std << " expected: " << address_from_master_std;
+  if (address_from_master_std != address_std) {
+    return {td::Status::Error(409, "Verification on master failed"), std::move(session)};
+  }
+  data->is_validated_ = true;
+
+  return {std::move(data), std::move(session)};
+}
+TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCollection(
+    const std::string& address,
+    bool skip_verification,
+    std::optional<ton::BlockSeqno> seqno,
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
+) const {
+  auto [r_smc_info, new_session] = loadContract(address, seqno, archival, session);
+  session = std::move(new_session);
+  if (!r_smc_info.is_ok()) {
+    return {r_smc_info.move_as_error(), session};
+  }
+  auto smc_info = r_smc_info.move_as_ok();
+
+  constexpr std::string method_name = "get_collection_data";
+  auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator = [id_ = smc_info->id_, method_ = method_name] {
+      return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(id_,
+        tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_),
+        std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>{});
+    },
+    .session = std::move(session)
+  };
+  auto [res, new_session_2] = send_request_function(std::move(request), false);
+  session = std::move(new_session_2);
+  if (!res.is_ok()) {
+    return {nullptr, std::move(session)};
+  }
+  auto result = res.move_as_ok();
+  if (result->exit_code_ != 0) {
+    return {nullptr, std::move(session)};
+  }
+  auto data = std::make_unique<NFTCollectionDataResult>(address);
+
+  // total_supply_
+  if (result->stack_[0]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return {td::Status::Error(500, "stackEntryNumber expected at 0 position"), std::move(session)};
+  }
+  auto r_next_item_index = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  if (r_next_item_index.is_error()) {
+    return {r_next_item_index.move_as_error(), std::move(session)};
+  }
+  data->next_item_index_ = r_next_item_index.move_as_ok();
+
+  // owner_address_
+  auto r_owner_address_ = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  if (r_owner_address_.is_error()) {
+    return {r_owner_address_.move_as_error(), std::move(session)};
+  }
+  data->owner_address_ = r_owner_address_.move_as_ok();
+
+  // collection_content_
+  // TODO: implement parsing
+  data->collection_content_["type"] = "unknown";
+
+  return {std::move(data), std::move(session)};
+}
+TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTItem(
+    const std::string& address,
+    bool skip_verification,
+    std::optional<ton::BlockSeqno> seqno,
+    std::optional<bool> archival,
+    multiclient::SessionPtr session
+) const {
+  auto [r_smc_info, new_session] = loadContract(address, seqno, archival, session);
+  session = std::move(new_session);
+  if (!r_smc_info.is_ok()) {
+    return {r_smc_info.move_as_error(), session};
+  }
+  auto smc_info = r_smc_info.move_as_ok();
+
+  constexpr std::string method_name = "get_nft_data";
+  auto request = multiclient::RequestFunction<tonlib_api::smc_runGetMethod>{
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator = [id_ = smc_info->id_, method_ = method_name] {
+      return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(id_,
+        tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_),
+        std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>{});
+    },
+    .session = std::move(session)
+  };
+  auto [res, new_session_2] = send_request_function(std::move(request), false);
+  session = std::move(new_session_2);
+  if (!res.is_ok()) {
+    return {nullptr, std::move(session)};
+  }
+  auto result = res.move_as_ok();
+  if (result->exit_code_ != 0) {
+    return {nullptr, std::move(session)};
+  }
+  auto data = std::make_unique<NFTItemDataResult>(address);
+
+  // init_
+  if (result->stack_[0]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return {td::Status::Error(500, "stackEntryNumber expected at 0 position"), std::move(session)};
+  }
+  auto r_init = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  if (r_init.is_error()) {
+    return {r_init.move_as_error(), std::move(session)};
+  }
+  data->init_ = std::stoi(r_init.move_as_ok());
+
+
+  // index_
+  if (result->stack_[1]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
+    return {td::Status::Error(500, "stackEntryNumber expected at 1 position"), std::move(session)};
+  }
+  auto r_index = tvm::number_from_tvm_stack_entry(result->stack_[1]);
+  if (r_index.is_error()) {
+    return {r_index.move_as_error(), std::move(session)};
+  }
+  data->index_ = r_index.move_as_ok();
+
+  // collection_address_
+  auto r_collection_address = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  if (r_collection_address.is_error()) {
+    return {r_collection_address.move_as_error(), std::move(session)};
+  }
+  data->collection_address_ = r_collection_address.move_as_ok();
+
+  // owner_address_
+  auto r_owner_address_ = tvm::address_from_tvm_stack_entry(result->stack_[3]);
+  if (r_owner_address_.is_error()) {
+    return {r_owner_address_.move_as_error(), std::move(session)};
+  }
+  data->owner_address_ = r_owner_address_.move_as_ok();
+
+  // content_
+  // TODO: implement content parsing
+
+  // dns_entry_
+  // TODO: implement dns entry parsing
+
+  if (skip_verification) {
+    return {std::move(data), std::move(session)};
+  }
+
+  // TODO: verification
+  return {std::move(data), std::move(session)};
 }
 }  // namespace ton_http::core

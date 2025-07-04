@@ -35,8 +35,55 @@ struct RunGetMethodResult {
   [[nodiscard]] std::string to_json_string() const;
 };
 
-// runGetMethod stack tools
-td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> parse_stack(const std::string& stack);
+struct TokenDataResult {
+  explicit TokenDataResult(const std::string& address) : address_(address) {}
+  virtual ~TokenDataResult() = default;
+  std::string address_;
+  [[nodiscard]] virtual std::string to_json_string() const;
+};
+using TokenDataResultPtr = std::unique_ptr<TokenDataResult>;
+
+struct JettonMasterDataResult: public TokenDataResult {
+  std::string total_supply_;
+  bool mintable_;
+  std::string admin_address_;
+  std::map<std::string, std::string> jetton_content_;
+  std::string jetton_wallet_code_;
+  explicit JettonMasterDataResult(const std::string& address) : TokenDataResult(address) {}
+  [[nodiscard]] std::string to_json_string() const override;
+};
+
+struct JettonWalletDataResult: public TokenDataResult {
+  std::string balance_;
+  std::string owner_address_;
+  std::string jetton_master_address_;
+  std::optional<bool> mintless_is_claimed_;
+  std::string jetton_wallet_code_;
+  bool is_validated_;
+
+  explicit JettonWalletDataResult(const std::string& address) : TokenDataResult(address) {}
+  [[nodiscard]] std::string to_json_string() const override;
+};
+
+struct NFTCollectionDataResult : public TokenDataResult {
+  std::string next_item_index_;
+  std::string owner_address_;
+  std::map<std::string, std::string> collection_content_;
+
+  explicit NFTCollectionDataResult(const std::string& address) : TokenDataResult(address) {}
+  [[nodiscard]] std::string to_json_string() const override;
+};
+
+struct NFTItemDataResult : public TokenDataResult {
+  bool init_;
+  std::string index_;
+  std::string collection_address_;
+  std::string owner_address_;
+  std::map<std::string, std::string> content_;
+  // TODO: implement dns entry parsing
+  explicit NFTItemDataResult(const std::string& address) : TokenDataResult(address) {}
+  [[nodiscard]] std::string to_json_string() const override;
+};
 
 // TonlibWorker
 struct TonlibWorkerResponse {
@@ -78,6 +125,13 @@ public:
   Result<std::string> packAddress(const std::string& address, multiclient::SessionPtr session = nullptr) const;
   Result<std::string> unpackAddress(const std::string& address, multiclient::SessionPtr session = nullptr) const;
   Result<DetectHashResult> detectHash(const std::string& hash, multiclient::SessionPtr session = nullptr) const;
+  Result<TokenDataResultPtr> getTokenData(
+    const std::string& address,
+    bool skip_verification = false,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
   Result<tonlib_api::blocks_getMasterchainInfo::ReturnType>
     getMasterchainInfo(multiclient::SessionPtr session = nullptr) const;
   Result<tonlib_api::blocks_getMasterchainBlockSignatures::ReturnType>
@@ -223,6 +277,35 @@ public:
 
 private:
   multiclient::MultiClient tonlib_;
+
+  Result<TokenDataResultPtr> checkJettonMaster(
+    const std::string& address,
+    bool skip_verification = false,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
+  Result<TokenDataResultPtr> checkJettonWallet(
+    const std::string& address,
+    bool skip_verification = false,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
+  Result<TokenDataResultPtr> checkNFTCollection(
+    const std::string& address,
+    bool skip_verification = false,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
+  Result<TokenDataResultPtr> checkNFTItem(
+    const std::string& address,
+    bool skip_verification = false,
+    std::optional<ton::BlockSeqno> seqno = std::nullopt,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
 
   // template<typename T>
   // Result<typename T::ReturnType> send_request(multiclient::Request<T>&& request, bool retry_archival = false) const {
