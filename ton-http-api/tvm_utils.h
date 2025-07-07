@@ -5,6 +5,7 @@
 #include <userver/formats/json.hpp>
 #include "td/utils/Status.h"
 #include "vm/cells/Cell.h"
+#include "vm/cells/CellSlice.h"
 
 namespace ton_http::tvm {
 using namespace ton;
@@ -24,4 +25,10 @@ td::Result<std::string> address_from_cell(std::string data);
 
 td::Result<std::string> address_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry);
 td::Result<std::string> number_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry);
+
+// tokens
+td::Result<std::string> parse_snake_data(td::Ref<vm::CellSlice> data);
+td::Result<std::string> parse_chunks_data(td::Ref<vm::CellSlice> data);
+td::Result<std::string> parse_content_data(td::Ref<vm::CellSlice> cs);
+td::Result<std::tuple<bool, std::map<std::string, std::string>>> parse_token_data(td::Ref<vm::Cell> cell);
 }

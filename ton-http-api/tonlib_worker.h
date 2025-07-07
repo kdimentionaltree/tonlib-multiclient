@@ -47,6 +47,7 @@ struct JettonMasterDataResult: public TokenDataResult {
   std::string total_supply_;
   bool mintable_;
   std::string admin_address_;
+  bool jetton_content_onchain_;
   std::map<std::string, std::string> jetton_content_;
   std::string jetton_wallet_code_;
   explicit JettonMasterDataResult(const std::string& address) : TokenDataResult(address) {}
@@ -68,6 +69,7 @@ struct JettonWalletDataResult: public TokenDataResult {
 struct NFTCollectionDataResult : public TokenDataResult {
   std::string next_item_index_;
   std::string owner_address_;
+  bool collection_content_onchain_;
   std::map<std::string, std::string> collection_content_;
 
   explicit NFTCollectionDataResult(const std::string& address) : TokenDataResult(address) {}
@@ -79,7 +81,9 @@ struct NFTItemDataResult : public TokenDataResult {
   std::string index_;
   std::string collection_address_;
   std::string owner_address_;
+  bool content_onchain_;
   std::map<std::string, std::string> content_;
+  bool is_validated_;
   // TODO: implement dns entry parsing
   explicit NFTItemDataResult(const std::string& address) : TokenDataResult(address) {}
   [[nodiscard]] std::string to_json_string() const override;
