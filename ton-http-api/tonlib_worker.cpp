@@ -683,7 +683,7 @@ TonlibWorker::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorke
     multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getTransactions>{
-      .parameters = {.mode = multiclient::RequestMode::Single},
+      .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
       .request_creator =
           [w = blk_id->workchain_,
            sh = blk_id->shard_,
@@ -716,7 +716,6 @@ TonlibWorker::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorke
       );
     };
   }
-  request.parameters.archival = archival;
   auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
   return {std::move(result), new_session};
 }
@@ -728,7 +727,7 @@ TonlibWorker::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWo
     multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getTransactionsExt>{
-      .parameters = {.mode = multiclient::RequestMode::Single},
+      .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
       .request_creator =
           [w = blk_id->workchain_,
            sh = blk_id->shard_,
@@ -761,7 +760,6 @@ TonlibWorker::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWo
       );
     };
   }
-  request.parameters.archival = archival;
   auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
   return {std::move(result), new_session};
 }
@@ -773,7 +771,7 @@ TonlibWorker::Result<tonlib_api::raw_getTransactions::ReturnType> TonlibWorker::
     multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::raw_getTransactions>{
-      .parameters = {.mode = multiclient::RequestMode::Single},
+      .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
       .request_creator =
           [a = account_address, fl = from_transaction_lt, fh = from_transaction_hash] {
             return tonlib_api::make_object<tonlib_api::raw_getTransactions>(
@@ -784,7 +782,6 @@ TonlibWorker::Result<tonlib_api::raw_getTransactions::ReturnType> TonlibWorker::
           },
       .session = std::move(session)
   };
-  request.parameters.archival = archival;
   auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
   return {std::move(result), new_session};
 }
@@ -798,7 +795,7 @@ TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker
     multiclient::SessionPtr session
 ) const {
   auto request = multiclient::RequestFunction<tonlib_api::raw_getTransactionsV2>{
-    .parameters = {.mode = multiclient::RequestMode::Single},
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
     .request_creator = [a = account_address, fl = from_transaction_lt, fh = from_transaction_hash, c = count, dm = try_decode_messages] {
       return tonlib_api::make_object<tonlib_api::raw_getTransactionsV2>(
         nullptr,
@@ -809,7 +806,6 @@ TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker
     },
     .session = std::move(session)
   };
-  request.parameters.archival = archival;
   auto [result, new_session] = send_request_function(std::move(request), !archival.has_value());
   return {std::move(result), new_session};
 }
@@ -825,6 +821,14 @@ TonlibWorker::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorke
     std::optional<bool> archival,
     multiclient::SessionPtr session
 ) const {
+  if (session == nullptr && archival.has_value()) {
+    auto options = multiclient::RequestParameters{.mode = multiclient::RequestMode::Single, .archival = archival};
+    auto r_session = tonlib_.get_session(options, nullptr);
+    if (r_session.is_error()) {
+      return {td::Status::Error(533, r_session.move_as_error_prefix("Failed to get session: ").message()), nullptr};
+    }
+    session = r_session.move_as_ok();
+  }
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> blk_id = nullptr;
   if (!root_hash.empty() && !file_hash.empty()) {
     blk_id = tonlib_api::make_object<tonlib_api::ton_blockIdExt>(workchain, shard, seqno, root_hash, file_hash);
@@ -899,6 +903,14 @@ TonlibWorker::Result<tonlib_api::blocks_getTransactionsExt::ReturnType> TonlibWo
     std::optional<bool> archival,
     multiclient::SessionPtr session
 ) const {
+  if (session == nullptr && archival.has_value()) {
+    auto options = multiclient::RequestParameters{.mode = multiclient::RequestMode::Single, .archival = archival};
+    auto r_session = tonlib_.get_session(options, nullptr);
+    if (r_session.is_error()) {
+      return {td::Status::Error(533, r_session.move_as_error_prefix("Failed to get session: ").message()), nullptr};
+    }
+    session = r_session.move_as_ok();
+  }
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> blk_id = nullptr;
   if (!root_hash.empty() && !file_hash.empty()) {
     blk_id = tonlib_api::make_object<tonlib_api::ton_blockIdExt>(workchain, shard, seqno, root_hash, file_hash);
@@ -973,6 +985,14 @@ TonlibWorker::Result<tonlib_api::raw_getTransactionsV2::ReturnType> TonlibWorker
     std::optional<bool> archival,
     multiclient::SessionPtr session
 ) const {
+  if (session == nullptr && archival.has_value()) {
+    auto options = multiclient::RequestParameters{.mode = multiclient::RequestMode::Single, .archival = archival};
+    auto r_session = tonlib_.get_session(options, nullptr);
+    if (r_session.is_error()) {
+      return {td::Status::Error(533, r_session.move_as_error_prefix("Failed to get session: ").message()), nullptr};
+    }
+    session = r_session.move_as_ok();
+  }
   if (!(from_transaction_lt.has_value() && !from_transaction_hash.empty())) {
     auto [r_account_state_, new_session] = getAddressInformation(account_address, std::nullopt, session);
     if (r_account_state_.is_error()) {
@@ -1256,6 +1276,14 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::smc_info>> TonlibWorker::loadCo
     std::optional<bool> archival,
     multiclient::SessionPtr session
 ) const {
+  if (session == nullptr && archival.has_value()) {
+    auto options = multiclient::RequestParameters{.mode = multiclient::RequestMode::Single, .archival = archival};
+    auto r_session = tonlib_.get_session(options, nullptr);
+    if (r_session.is_error()) {
+      return {td::Status::Error(533, r_session.move_as_error_prefix("Failed to get session: ").message()), nullptr};
+    }
+    session = r_session.move_as_ok();
+  }
   tonlib_api::object_ptr<tonlib_api::ton_blockIdExt> with_block;
   if (seqno.has_value()) {
     auto [res, new_session] =
