@@ -11,6 +11,7 @@
 #include "tvm_utils.h"
 #include "userver/components/component_context.hpp"
 #include "userver/http/common_headers.hpp"
+#include "userver/logging/component.hpp"
 #include "userver/logging/log.hpp"
 #include "utils.hpp"
 
@@ -40,7 +41,7 @@ std::string ApiV2Handler::HandleRequestThrow(
           value = std::to_string(it->As<int>());
         }
 
-        LOG_DEBUG() << "Arg: " << it.GetName() << " Value: " << value;
+        LOG_DEBUG_TO(*logger_) << "Arg: " << it.GetName() << " Value: " << value;
         req.SetArg(it.GetName(), std::move(value));
       }
     } catch (const userver::formats::json::ParseException& e) {
@@ -83,7 +84,7 @@ std::string ApiV2Handler::HandleRequestThrow(
         value = std::to_string(it->As<bool>());
       }
 
-      LOG_INFO() << "jsonRPC Arg: " << it.GetName() << " Value: " << value;
+      LOG_DEBUG_TO(*logger_) << "jsonRPC Arg: " << it.GetName() << " Value: " << value;
       req2.SetArg(it.GetName(), value);
     }
     req = req2;
@@ -107,7 +108,7 @@ std::string ApiV2Handler::HandleRequestThrow(
       try {
         response["result"] = userver::formats::json::FromString(res.result_str.value());
       } catch (const std::exception& e) {
-        LOG_ERROR() << "Failed to parse result_str: " << e.what();
+        LOG_ERROR_TO(*logger_) << "Failed to parse result_str: " << e.what();
         response["result"] = res.result_str.value();
       }
     } else {
@@ -123,12 +124,28 @@ std::string ApiV2Handler::HandleRequestThrow(
   if (res.session) {
     response["@extra"] = res.session->to_string();
   }
-  return userver::formats::json::ToString(response.ExtractValue());
+  auto response_str = userver::formats::json::ToString(response.ExtractValue());
+
+  userver::logging::LogExtra log_extra;
+  log_extra.Extend("http_method", req.http_method);
+  log_extra.Extend("ton_api_method", req.ton_api_method);
+  log_extra.Extend("url", request.GetUrl());
+  log_extra.Extend("status_code", code);
+  if (code != 200) {
+    log_extra.Extend("response", response_str);
+    LOG_WARNING_TO(*logger_) << log_extra;
+  } else {
+    LOG_INFO_TO(*logger_) << log_extra;
+  }
+  return std::move(response_str);
 }
 ApiV2Handler::ApiV2Handler(
     const userver::components::ComponentConfig& config, const userver::components::ComponentContext& context
 ) :
     HttpHandlerBase(config, context), tonlib_component_(context.FindComponent<core::TonlibComponent>()) {
+  auto& logging_component =
+      context.FindComponent<userver::components::Logging>();
+  logger_ = logging_component.GetLogger("api-v2");
 }
 core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequest& request) const {
   std::string ton_api_method;
@@ -567,10 +584,6 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::queryEstimateFees, address, body, init_code, init_data, ignore_chksig.value(), nullptr);
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
-  }
-
-  if (ton_api_method == "healthcheck") {
-    return core::TonlibWorkerResponse::from_result_string("{}", nullptr);
   }
 
   return {false, nullptr, std::nullopt,

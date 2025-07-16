@@ -33,7 +33,7 @@ components_manager:
           format: json
           overflow_behavior: discard
     tonlib:
-      global_config: /run/secrets/ton-global-config
+      global_config: ./private/global-config.json
       keystore: /tmp/keystore/
       threads: 16
       task_processor: main-task-processor

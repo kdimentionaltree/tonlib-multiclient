@@ -1306,7 +1306,7 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::smc_info>> TonlibWorker::loadCo
             },
         .session = session
     };
-    auto [result, new_session] = send_request_function(std::move(request), false);
+    auto [result, new_session] = send_request_function(std::move(request), true);
     return {std::move(result), std::move(new_session)};
   }
   auto request = multiclient::RequestFunction<tonlib_api::withBlock>{

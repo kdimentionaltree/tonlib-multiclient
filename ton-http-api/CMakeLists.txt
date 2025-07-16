@@ -11,8 +11,6 @@ configure_file(openapi/openapi_page.hpp.in ${CMAKE_CURRENT_SOURCE_DIR}/openapi/o
 
 set(TON_HTTP_API_CPP_SOURCE
     main.cpp
-    handlers.hpp
-    handlers.cpp
     tonlib_component.cpp
     tonlib_component.h
     tonlib_worker.cpp

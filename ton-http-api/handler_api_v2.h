@@ -26,6 +26,7 @@ public:
   ApiV2Handler(const userver::components::ComponentConfig& config, const userver::components::ComponentContext& context);
 private:
   ton_http::core::TonlibComponent& tonlib_component_;
+  userver::logging::LoggerPtr logger_;
   [[nodiscard]] core::TonlibWorkerResponse HandleTonlibRequest(const TonlibApiRequest& request) const;
 };
 }
