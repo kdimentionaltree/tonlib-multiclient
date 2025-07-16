@@ -20,6 +20,13 @@ if (PY_TONLIB_MULTICLIENT)
 endif()
 
 if (TON_HTTP_API_CPP)
+  # userver config
+  set(USERVER_FEATURE_REDIS TRUE)
+  set(USERVER_FEATURE_UBOOST_CORO TRUE)
+  set(USERVER_FEATURE_CHAOTIC FALSE)
+  set(USERVER_FEATURE_CHAOTIC_EXPERIMENAL FALSE)
+  set(USERVER_FEATURE_UTEST FALSE)
+  set(USERVER_FEATURE_TESTSUITE FALSE)
   add_subdirectory(external/userver EXCLUDE_FROM_ALL)
   add_subdirectory(ton-http-api)
 endif()

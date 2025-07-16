@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(ton-http-api-cpp CXX)
 
-set(USERVER_FEATURE_REDIS TRUE)
-set(USERVER_FEATURE_UBOOST_CORO TRUE)
 userver_setup_environment()
 
 file(READ openapi/openapi.html OPENAPI_HTML_CONTENT)
