@@ -40,7 +40,7 @@ components_manager:
     handler-server-monitor:
       path: /stats
       method: GET
-      task_processor: main-task-processor
+      task_processor: monitor-task-processor
       format: json
     handler-ping:
       path: /health
