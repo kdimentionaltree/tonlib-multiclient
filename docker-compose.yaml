@@ -1,5 +1,6 @@
 services:
   http-api-cpp:
+    image: toncenter/ton-http-api-cpp:latest
     build:
       context: .
       dockerfile: Dockerfile

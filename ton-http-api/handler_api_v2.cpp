@@ -40,7 +40,7 @@ std::string ApiV2Handler::HandleRequestThrow(
           value = std::to_string(it->As<int>());
         }
 
-        LOG_INFO() << "Arg: " << it.GetName() << " Value: " << value;
+        LOG_DEBUG() << "Arg: " << it.GetName() << " Value: " << value;
         req.SetArg(it.GetName(), std::move(value));
       }
     } catch (const userver::formats::json::ParseException& e) {

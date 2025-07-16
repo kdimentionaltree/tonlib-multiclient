@@ -1440,7 +1440,7 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::query_fees>> TonlibWorker::quer
           [id = query_info->id_, ignore_chksig_ = ignore_chksig] {
             return tonlib_api::make_object<tonlib_api::query_estimateFees>(id, ignore_chksig_);
           },
-      session = std::move(session)
+      .session = std::move(session)
   };
   auto [result_2, new_session_2] = send_request_function(std::move(request_2), false);
   session = std::move(new_session_2);
