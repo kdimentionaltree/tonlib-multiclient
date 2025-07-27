@@ -261,6 +261,12 @@ public:
     multiclient::SessionPtr session = nullptr
   ) const;
 
+  Result<tonlib_api::smc_forget::ReturnType> forgetContract(
+    std::int64_t id,
+    std::optional<bool> archival = std::nullopt,
+    multiclient::SessionPtr session = nullptr
+  ) const;
+
   Result<RunGetMethodResult> runGetMethod(
     const std::string& address,
     const std::string& method_name,

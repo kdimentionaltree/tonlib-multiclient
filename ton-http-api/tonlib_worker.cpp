@@ -231,43 +231,37 @@ TonlibWorker::Result<TokenDataResultPtr> TonlibWorker::getTokenData(
   if (r_jetton_master.is_ok()) {
     auto data = r_jetton_master.move_as_ok();
     if (data) {
-      LOG(ERROR) << "1";
       return {std::move(data), std::move(session)};
     }
   } else {
-    LOG(ERROR) << "Jetton master: " << r_jetton_master.move_as_error();
+    LOG(DEBUG) << "Jetton master: " << r_jetton_master.move_as_error();
   }
   if (r_jetton_wallet.is_ok()) {
     auto data = r_jetton_wallet.move_as_ok();
     if (data) {
-      LOG(ERROR) << "2";
       return {std::move(data), std::move(session)};
     }
   } else {
-    LOG(ERROR) << "Jetton wallet: " << r_jetton_wallet.move_as_error();
+    LOG(DEBUG) << "Jetton wallet: " << r_jetton_wallet.move_as_error();
   }
 
   if (r_nft_collection.is_ok()) {
     auto data = r_nft_collection.move_as_ok();
     if (data) {
-      LOG(ERROR) << "3";
       return {std::move(data), std::move(session)};
     }
   } else {
-    LOG(ERROR) << "NFT collection: " << r_nft_collection.move_as_error();
+    LOG(DEBUG) << "NFT collection: " << r_nft_collection.move_as_error();
   }
 
   if (r_nft_item.is_ok()) {
     auto data = r_nft_item.move_as_ok();
     if (data) {
-      LOG(ERROR) << "4";
       return {std::move(data), std::move(session)};
     }
   } else {
-    LOG(ERROR) << "NFT item: " << r_nft_item.move_as_error();
+    LOG(DEBUG) << "NFT item: " << r_nft_item.move_as_error();
   }
-
-  LOG(ERROR) << "5";
 
   return {td::Status::Error(409, PSLICE() << "Smart contract " << address << " is not Jetton or NFT"), std::move(session)};
 }
@@ -1334,6 +1328,20 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::smc_info>> TonlibWorker::loadCo
   }
   return {ton::move_tl_object_as<tonlib_api::smc_info>(result.move_as_ok()), new_session};
 }
+TonlibWorker::Result<std::unique_ptr<tonlib_api::ok>> TonlibWorker::forgetContract(
+    std::int64_t id, std::optional<bool> archival, multiclient::SessionPtr session
+) const {
+  auto request = multiclient::RequestFunction<tonlib_api::smc_forget>{
+    .parameters = {.mode = multiclient::RequestMode::Single, .archival = archival},
+    .request_creator =
+        [id]() {
+          return tonlib_api::make_object<tonlib_api::smc_forget>(id);
+    },
+    .session = session
+  };
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), std::move(new_session)};
+}
 TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     const std::string& address,
     const std::string& method_name,
@@ -1387,7 +1395,11 @@ TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     return {state_result.move_as_error(), session};
   }
 
-  // TODO: call smc.forget to avoid ram overload
+  auto [forget_result, forget_session] = forgetContract(smc_info->id_, archival, session);
+  session = std::move(forget_session);
+  if (forget_result.is_error()) {
+    return {forget_result.move_as_error(), session};
+  }
 
   return {RunGetMethodResult{result.move_as_ok(), state_result.move_as_ok()}, session};
 }
@@ -1532,6 +1544,12 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   }
   data->jetton_wallet_code_ = td::base64_encode(static_cast<const tonlib_api::tvm_stackEntryCell&>(*result->stack_[4]).cell_->bytes_);
 
+  auto [forget_result, forget_session] = forgetContract(smc_info->id_, archival, session);
+  session = std::move(forget_session);
+  if (forget_result.is_error()) {
+    return {forget_result.move_as_error(), session};
+  }
+
   return {std::move(data), std::move(session)};
 }
 TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJettonWallet(
@@ -1595,6 +1613,12 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
     return {td::Status::Error(500, "stackEntryCell expected at 3 position"), std::move(session)};
   }
   data->jetton_wallet_code_ = td::base64_encode(static_cast<const tonlib_api::tvm_stackEntryCell&>(*result->stack_[3]).cell_->bytes_);
+
+  auto [forget_result, forget_session] = forgetContract(smc_info->id_, archival, session);
+  session = std::move(forget_session);
+  if (forget_result.is_error()) {
+    return {forget_result.move_as_error(), session};
+  }
 
   if (skip_verification) {
     return {std::move(data), std::move(session)};
@@ -1704,6 +1728,12 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   }
   data->is_validated_ = true;
 
+  auto [parent_forget_result, parent_forget_session] = forgetContract(parent_smc_info->id_, archival, session);
+  session = std::move(parent_forget_session);
+  if (parent_forget_result.is_error()) {
+    return {parent_forget_result.move_as_error(), session};
+  }
+
   return {std::move(data), std::move(session)};
 }
 TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCollection(
@@ -1776,6 +1806,12 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCol
     return {r_owner_address_.move_as_error(), std::move(session)};
   }
   data->owner_address_ = r_owner_address_.move_as_ok();
+
+  auto [forget_result, forget_session] = forgetContract(smc_info->id_, archival, session);
+  session = std::move(forget_session);
+  if (forget_result.is_error()) {
+    return {forget_result.move_as_error(), session};
+  }
 
   return {std::move(data), std::move(session)};
 }
@@ -1863,6 +1899,12 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
     auto [content_onchain, content] = r_content.move_as_ok();
     data->content_onchain_ = content_onchain;
     data->content_ = std::move(content);
+  }
+
+  auto [forget_result, forget_session] = forgetContract(smc_info->id_, archival, session);
+  session = std::move(forget_session);
+  if (forget_result.is_error()) {
+    return {forget_result.move_as_error(), session};
   }
 
   if (skip_verification) {
@@ -1982,6 +2024,13 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
 
   // dns_entry_
   // TODO: implement dns entry parsing
+
+  auto [parent_forget_result, parent_forget_session] = forgetContract(parent_smc_info->id_, archival, session);
+  session = std::move(parent_forget_session);
+  if (parent_forget_result.is_error()) {
+    return {parent_forget_result.move_as_error(), session};
+  }
+
 
   return {std::move(data), std::move(session)};
 }
