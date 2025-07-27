@@ -36,7 +36,17 @@ components_manager:
       global_config: ./private/global-config.json
       keystore: /tmp/keystore/
       threads: 16
+      external_message_endpoints:
       task_processor: main-task-processor
+    dns-client:
+      fs-task-processor: fs-task-processor
+    http-client:
+      pool-statistics-disable: false
+      thread-name-prefix: http-client
+      threads: 8
+      fs-task-processor: fs-task-processor
+      destination-metrics-auto-max-size: 100
+      user-agent: empty
     handler-server-monitor:
       path: /stats
       method: GET

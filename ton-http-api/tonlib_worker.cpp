@@ -268,7 +268,8 @@ TonlibWorker::Result<TokenDataResultPtr> TonlibWorker::getTokenData(
   }
 
   LOG(ERROR) << "5";
-  return {td::Status::Error(409, "Smart contract is not Jetton or NFT"), std::move(session)};
+
+  return {td::Status::Error(409, PSLICE() << "Smart contract " << address << " is not Jetton or NFT"), std::move(session)};
 }
 TonlibWorker::Result<tonlib_api::blocks_getMasterchainInfo::ReturnType> TonlibWorker::getMasterchainInfo(multiclient::SessionPtr session) const {
   auto request = multiclient::RequestFunction<tonlib_api::blocks_getMasterchainInfo>{

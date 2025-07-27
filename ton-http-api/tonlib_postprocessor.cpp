@@ -315,10 +315,10 @@ TonlibWorkerResponse TonlibPostProcessor::process_getWalletInformation(
   if (!result->code_.empty()) {
     auto code_hash_res = get_hash(result->code_);
     if (code_hash_res.is_ok()) {
-      builder["wallet"] = true;
       auto code_hash = code_hash_res.move_as_ok();
       auto parser_ = wallets::wallet_data_parsers.find(code_hash);
       if (parser_ != wallets::wallet_data_parsers.end()) {
+        builder["wallet"] = true;
         auto data_cell = vm::std_boc_deserialize(result->data_);
         if (data_cell.is_error()) {
           return TonlibWorkerResponse::from_error_string(data_cell.move_as_error().to_string(), 503, std::move(session));

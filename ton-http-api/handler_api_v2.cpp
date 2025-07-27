@@ -517,12 +517,18 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
   if (ton_api_method == "sendboc") {
     auto boc = request.GetArg("boc");
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::raw_sendMessage, boc, nullptr);
+    if (res.is_ok()) {
+      tonlib_component_.SendBocToExternalRequest(boc);
+    }
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
   if (ton_api_method == "sendbocreturnhash") {
     auto boc = request.GetArg("boc");
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::raw_sendMessageReturnHash, boc, nullptr);
+    if (res.is_ok()) {
+      tonlib_component_.SendBocToExternalRequest(boc);
+    }
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
   if (ton_api_method == "sendbocreturnhashnoerror") {
@@ -531,6 +537,8 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     auto result = core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
     if (!result.is_ok && result.error.has_value()) {
       result.error = td::Status::Error(200, result.error->message());
+    } else {
+      tonlib_component_.SendBocToExternalRequest(boc);
     }
     return std::move(result);
   }
