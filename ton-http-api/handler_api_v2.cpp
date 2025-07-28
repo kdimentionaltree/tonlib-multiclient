@@ -108,7 +108,7 @@ std::string ApiV2Handler::HandleRequestThrow(
       try {
         response["result"] = userver::formats::json::FromString(res.result_str.value());
       } catch (const std::exception& e) {
-        LOG_ERROR_TO(*logger_) << "Failed to parse result_str: " << e.what();
+        LOG_ERROR_TO(*logger_) << "Failed to parse result_str: " << e.what() << " value: " << res.result_str.value();
         response["result"] = res.result_str.value();
       }
     } else {
@@ -133,9 +133,9 @@ std::string ApiV2Handler::HandleRequestThrow(
   log_extra.Extend("status_code", code);
   if (code != 200) {
     log_extra.Extend("response", response_str);
-    LOG_WARNING_TO(*logger_) << log_extra;
+    // LOG_WARNING_TO(*logger_) << log_extra;
   } else {
-    LOG_INFO_TO(*logger_) << log_extra;
+    // LOG_INFO_TO(*logger_) << log_extra;
   }
   return std::move(response_str);
 }
