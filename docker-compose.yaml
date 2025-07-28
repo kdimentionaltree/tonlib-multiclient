@@ -12,7 +12,7 @@ services:
       - ton-global-config
       - static-config
     ulimits:
-      mlock: 1024
+      memlock: 1048576
 secrets:
   ton-global-config:
     file: ${TON_BLOCKCHAIN_CONFIG_PATH:-private/private-config.json}
