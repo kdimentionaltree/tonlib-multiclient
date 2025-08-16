@@ -16,6 +16,15 @@ struct TonlibApiRequest {
   void SetArg(const std::string& name, const std::string& value) {
     args.insert_or_assign(name, value);
   }
+
+  std::string GetHashKey() const {
+    std::stringstream ss;
+    ss << http_method << "/" << ton_api_method;
+    for (auto& [k, v] : args) {
+      ss << "/" << k << ":" << v;
+    }
+    return ss.str();
+  }
 };
 
 class ApiV2Handler final : public userver::server::handlers::HttpHandlerBase {
@@ -28,5 +37,6 @@ private:
   ton_http::core::TonlibComponent& tonlib_component_;
   userver::logging::LoggerPtr logger_;
   [[nodiscard]] core::TonlibWorkerResponse HandleTonlibRequest(const TonlibApiRequest& request) const;
+  [[nodiscard]] bool IsLogRequired(const TonlibApiRequest& request, const core::TonlibWorkerResponse& response) const;
 };
 }

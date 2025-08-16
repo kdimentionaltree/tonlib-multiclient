@@ -108,7 +108,7 @@ std::string ApiV2Handler::HandleRequestThrow(
       try {
         response["result"] = userver::formats::json::FromString(res.result_str.value());
       } catch (const std::exception& e) {
-        // LOG_ERROR_TO(*logger_) << "Failed to parse result_str: " << e.what() << " value: " << res.result_str.value();
+        LOG_DEBUG_TO(*logger_) << "Failed to parse result_str: " << e.what() << " value: " << res.result_str.value();
         response["result"] = res.result_str.value();
       }
     } else {
@@ -131,13 +131,13 @@ std::string ApiV2Handler::HandleRequestThrow(
   log_extra.Extend("ton_api_method", req.ton_api_method);
   log_extra.Extend("url", request.GetUrl());
   log_extra.Extend("status_code", code);
-  if (code != 200) {
+  if (IsLogRequired(req, res)) {
     log_extra.Extend("response", response_str);
     LOG_WARNING_TO(*logger_) << log_extra;
   } else {
     LOG_INFO_TO(*logger_) << log_extra;
   }
-  return std::move(response_str);
+  return response_str;
 }
 ApiV2Handler::ApiV2Handler(
     const userver::components::ComponentConfig& config, const userver::components::ComponentContext& context
@@ -596,6 +596,22 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
 
   return {false, nullptr, std::nullopt,
     td::Status::Error(404, "method not found"), nullptr};
+}
+bool ApiV2Handler::IsLogRequired(const TonlibApiRequest& request, const core::TonlibWorkerResponse& response) const {
+  if (response.is_ok) {
+    return false;
+  }
+  if (response.error.has_value()) {
+    auto& error = response.error.value();
+    auto status_code = error.code();
+    if (status_code == 409) {
+      return false;
+    }
+    if (status_code == 500 && request.ton_api_method.starts_with("sendboc")) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace ton_http::handlers
