@@ -7,6 +7,7 @@ services:
     command: --config /run/secrets/static-config
     ports:
       - 8877:8877
+      - 8878:8878
     restart: unless-stopped
     secrets:
       - ton-global-config
