@@ -629,7 +629,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
   if (ton_api_method == "rungetmethod") {
     auto address = request.GetArg("address");
     auto method = request.GetArg("method");
-    auto stack = request.GetArg("stack");
+    auto stack = request.GetArgVector("stack");
     auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
     auto archival = utils::stringToBool(request.GetArg("archival"));
 

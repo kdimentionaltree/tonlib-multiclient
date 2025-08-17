@@ -17,7 +17,7 @@ userver::formats::json::Value serialize_tvm_stack(std::vector<tonlib_api::object
 userver::formats::json::Value serialize_tvm_entry(tonlib_api::tvm_stackEntryCell& entry);
 userver::formats::json::Value serialize_tvm_entry(tonlib_api::tvm_stackEntrySlice& entry);
 
-td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> parse_stack(const std::string& stack_string);
+td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> parse_stack(const std::vector<std::string>& stack_string);
 
 userver::formats::json::Value serialize_cell(td::Ref<vm::Cell>& cell);
 

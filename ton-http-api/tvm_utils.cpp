@@ -230,17 +230,13 @@ td::Result<std::string> ton_http::tvm::number_from_tvm_stack_entry(tonlib_api::o
 }
 
 
-td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_http::tvm::parse_stack(const std::string& stack_string) {
-  std::string stack_str = stack_string;  // not sure that it won't corrupt the original string
-  TRY_RESULT(json_value, td::json_decode(td::MutableSlice(stack_str)));
-  if (json_value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(422, "Invalid stack format: array expected");
-  }
-  auto &json_array = json_value.get_array();
-
+td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_http::tvm::parse_stack(const std::vector<std::string>& stack_string) {
   std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>> stack;
-  stack.reserve(json_array.size());
-  for (auto &value : json_array) {
+  stack.reserve(stack_string.size());
+  for (auto &stack_it : stack_string) {
+    std::string stack_it_str = stack_it;
+    TRY_RESULT(value, td::json_decode(td::MutableSlice(stack_it_str)));
+
     if (value.type() != td::JsonValue::Type::Array) {
       return td::Status::Error(422, "Invalid stack format: array expected");
     }

@@ -273,7 +273,7 @@ public:
   Result<RunGetMethodResult> runGetMethod(
     const std::string& address,
     const std::string& method_name,
-    const std::string& stack,
+    const std::vector<std::string>& stack,
     std::optional<ton::BlockSeqno> seqno = std::nullopt,
     std::optional<bool> archival = std::nullopt,
     multiclient::SessionPtr session = nullptr
