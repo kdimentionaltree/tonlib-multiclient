@@ -26,6 +26,14 @@ COPY CMakeLists.txt /app/CMakeLists.txt
 
 WORKDIR /app/build
 RUN cmake -DCMAKE_BUILD_TYPE=Release -DPORTABLE=1 .. && make -j$(nproc) && make install
-
 COPY config/static_config_compose.yaml /app/static_config.yaml
 ENTRYPOINT [ "ton-http-api-cpp" ]
+
+# FROM ubuntu:24.04
+# RUN DEBIAN_FRONTEND=noninteractive apt update -y \
+#     && apt install -y wget curl dnsutils libsecp256k1-dev libsodium-dev libfmt-dev \
+#     && rm -rf /var/lib/apt/lists/*
+# COPY --from=builder /app/build/ton-http-api/ton-http-api-cpp /usr/bin/
+# COPY --from=builder /app/build/tonlib-multiclient/libtonlib_multiclient_lib.so /usr/lib
+# COPY config/static_config_compose.yaml /app/static_config.yaml
+# ENTRYPOINT [ "ton-http-api-cpp" ]
