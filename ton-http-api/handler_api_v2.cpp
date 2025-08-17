@@ -71,7 +71,11 @@ std::string ApiV2Handler::HandleRequestThrow(
           value.push_back(val);
         }
         req.SetArgVector(it.GetName(), value);
-        // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
+        std::stringstream ss1;
+        for (auto& i : value) {
+          ss1 << i << ";";
+        }
+        LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
       }
     } catch (const userver::formats::json::ParseException& e) {
       request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
@@ -629,7 +633,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
   if (ton_api_method == "rungetmethod") {
     auto address = request.GetArg("address");
     auto method = request.GetArg("method");
-    auto stack = request.GetArgVector("stack");
+    auto stack = request.GetArg("stack");
     auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
     auto archival = utils::stringToBool(request.GetArg("archival"));
 

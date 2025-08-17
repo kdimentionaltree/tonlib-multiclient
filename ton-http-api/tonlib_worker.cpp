@@ -1365,7 +1365,7 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::ok>> TonlibWorker::forgetContra
 TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     const std::string& address,
     const std::string& method_name,
-    const std::vector<std::string>& stack,
+    const std::string& stack,
     std::optional<ton::BlockSeqno> seqno,
     std::optional<bool> archival,
     multiclient::SessionPtr session
