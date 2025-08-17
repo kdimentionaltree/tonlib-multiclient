@@ -7,6 +7,7 @@ struct TonlibApiRequest {
   std::string http_method;
   std::string ton_api_method;
   std::map<std::string, std::string> args;
+  bool is_debug_request{false};
 
   std::string GetArg(const std::string& name) const {
     const auto it = args.find(name);

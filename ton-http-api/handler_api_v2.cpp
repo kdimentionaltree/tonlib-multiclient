@@ -21,6 +21,11 @@ std::string ApiV2Handler::HandleRequestThrow(
 ) const {
   TonlibApiRequest req;
   req.http_method = request.GetMethodStr();
+  {
+    auto debug_request_header = request.GetHeader("X-Debug-Request");
+    auto debug_request = utils::stringToBool(debug_request_header);
+    req.is_debug_request = debug_request.has_value() && debug_request.value();
+  }
   auto ton_api_method_case_sensitive = request.GetPathArg("ton_api_method");
   std::ranges::copy(std::views::transform(ton_api_method_case_sensitive, ::tolower), std::back_inserter(req.ton_api_method));
   for (auto& name : request.ArgNames()) {
@@ -66,7 +71,8 @@ std::string ApiV2Handler::HandleRequestThrow(
   if (req.ton_api_method == "jsonrpc") {
     TonlibApiRequest req2;
     req2.http_method = req.http_method;
-    req2.ton_api_method = req.GetArg("method");
+    auto api_method_case_sensitive = req.GetArg("method");
+    std::ranges::copy(std::views::transform(api_method_case_sensitive, ::tolower), std::back_inserter(req2.ton_api_method));
 
     auto body = userver::formats::json::FromString(req.GetArg("params"));
     for (auto it = body.begin(); it != body.end(); ++it) {
@@ -83,11 +89,9 @@ std::string ApiV2Handler::HandleRequestThrow(
       if (it->IsBool()) {
         value = std::to_string(it->As<bool>());
       }
-
-      LOG_DEBUG_TO(*logger_) << "jsonRPC Arg: " << it.GetName() << " Value: " << value;
       req2.SetArg(it.GetName(), value);
     }
-    req = req2;
+    req = std::move(req2);
   }
 
   // call method
@@ -598,6 +602,9 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     td::Status::Error(404, "method not found"), nullptr};
 }
 bool ApiV2Handler::IsLogRequired(const TonlibApiRequest& request, const core::TonlibWorkerResponse& response) const {
+  if (request.is_debug_request) {
+    return true;
+  }
   if (response.is_ok) {
     return false;
   }
