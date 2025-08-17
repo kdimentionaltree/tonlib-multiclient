@@ -71,7 +71,7 @@ std::string ApiV2Handler::HandleRequestThrow(
           value.push_back(val);
         }
         req.SetArgVector(it.GetName(), value);
-        LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
+        // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
       }
     } catch (const userver::formats::json::ParseException& e) {
       request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
@@ -136,7 +136,7 @@ std::string ApiV2Handler::HandleRequestThrow(
         value.push_back(val);
       }
       req2.SetArgVector(it.GetName(), value);
-      LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
+      // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
     }
     req = std::move(req2);
   }
@@ -592,7 +592,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       ss << lib.value() << ";";
       libs.push_back(std::move(lib.value()));
     }
-    LOG_ERROR_TO(*logger_) << "getlibraries: " << libs;
+    // LOG_ERROR_TO(*logger_) << "getlibraries: " << libs;
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getLibraries, libs, nullptr);
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
