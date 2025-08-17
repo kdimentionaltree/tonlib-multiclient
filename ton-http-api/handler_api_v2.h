@@ -6,23 +6,41 @@ namespace ton_http::handlers {
 struct TonlibApiRequest {
   std::string http_method;
   std::string ton_api_method;
-  std::map<std::string, std::string> args;
+  std::map<std::string, std::vector<std::string>> args;
   bool is_debug_request{false};
 
   std::string GetArg(const std::string& name) const {
     const auto it = args.find(name);
     if (it == args.end()) { return ""; }
+    if (it->second.empty()) { return ""; }
+    return it->second[0];
+  }
+  const std::vector<std::string>& GetArgVector(const std::string& name) const {
+    const auto it = args.find(name);
+    if (it == args.end()) { return {}; }
     return it->second;
   }
   void SetArg(const std::string& name, const std::string& value) {
-    args.insert_or_assign(name, value);
+    args.insert_or_assign(name, std::vector<std::string>{value});
+  }
+  void SetArgVector(const std::string& name, const std::vector<std::string>& values) {
+    args.insert_or_assign(name, std::move(values));
   }
 
-  std::string GetHashKey() const {
+  [[nodiscard]] std::string GetHashKey() const {
     std::stringstream ss;
     ss << http_method << "/" << ton_api_method;
     for (auto& [k, v] : args) {
-      ss << "/" << k << ":" << v;
+      ss << "/" << k << ":";
+      bool is_first = true;
+      for (auto &i : v) {
+        if (is_first) {
+          is_first = false;
+        } else {
+          ss << ",";
+        }
+        ss << i;
+      }
     }
     return ss.str();
   }

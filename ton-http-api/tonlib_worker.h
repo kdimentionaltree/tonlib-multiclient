@@ -172,6 +172,9 @@ public:
     std::optional<ton::BlockSeqno> seqno = std::nullopt,
     multiclient::SessionPtr session = nullptr) const;
   Result<tonlib_api::getConfigParam::ReturnType> getConfigAll(std::optional<ton::BlockSeqno> seqno = std::nullopt, multiclient::SessionPtr session = nullptr) const;
+  Result<tonlib_api::smc_getLibraries::ReturnType> getLibraries(
+    std::vector<std::string> libs,
+    multiclient::SessionPtr session = nullptr) const;
 
   Result<tonlib_api::blocks_getTransactions::ReturnType> raw_getBlockTransactions(const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
     size_t count,

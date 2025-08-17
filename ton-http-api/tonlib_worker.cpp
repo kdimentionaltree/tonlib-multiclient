@@ -670,6 +670,26 @@ TonlibWorker::Result<tonlib_api::getConfigParam::ReturnType> TonlibWorker::getCo
     return {ton::move_tl_object_as<tonlib_api::configInfo>(result.move_as_ok()), session};
   }
 }
+TonlibWorker::Result<std::unique_ptr<tonlib_api::smc_libraryResult>> TonlibWorker::getLibraries(
+    std::vector<std::string> libs, multiclient::SessionPtr session
+) const {
+  auto request = multiclient::RequestFunction<tonlib_api::smc_getLibraries>{
+    .parameters = {.mode = multiclient::RequestMode::Single},
+    .request_creator =
+        [libs] {
+          std::vector<td::Bits256> lib_hashes;
+          for (auto& lib : libs) {
+            td::Bits256 hash;
+            hash.as_slice().copy_from(lib);
+            lib_hashes.push_back(std::move(hash));
+          }
+          return tonlib_api::make_object<tonlib_api::smc_getLibraries>(std::move(lib_hashes));
+    },
+    .session = std::move(session)
+  };
+  auto [result, new_session] = send_request_function(std::move(request), true);
+  return {std::move(result), new_session};
+}
 TonlibWorker::Result<tonlib_api::blocks_getTransactions::ReturnType> TonlibWorker::raw_getBlockTransactions(
     const tonlib_api::object_ptr<tonlib_api::ton_blockIdExt>& blk_id,
     size_t count,

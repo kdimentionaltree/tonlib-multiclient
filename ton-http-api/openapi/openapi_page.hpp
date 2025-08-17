@@ -1808,6 +1808,58 @@ std::string GetOpenApiJson() {
         ]
       }
     },
+    "/api/v2/getLibraries": {
+      "get": {
+        "tags": [
+          "get config"
+        ],
+        "summary": "Get Libraries",
+        "description": "Get libraries codes.",
+        "operationId": "get_libraries_getLibraries_get",
+        "parameters": [
+          {
+            "description": "List of base64 encoded libraries hashes",
+            "required": true,
+            "schema": {
+              "items": {
+
+              },
+              "type": "array",
+              "title": "Libraries",
+              "description": "List of base64 or hex encoded libraries hashes"
+            },
+            "name": "libraries",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "504": {
+            "description": "Lite Server Timeout"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "APIKeyQuery": []
+          }
+        ]
+      }
+    },
     "/api/v2/sendBoc": {
       "post": {
         "tags": [

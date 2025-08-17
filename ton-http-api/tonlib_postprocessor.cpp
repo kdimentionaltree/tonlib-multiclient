@@ -7,7 +7,7 @@
 
 namespace ton_http::core {
 
-static const std::unordered_set<std::string> suspended_jettons{
+static const std::unordered_set<std::string> suspended_accounts{
 "-1:e69571e7b9f58edfebefa297e547f36920532289dbe9ff1b76d107fcbac30104",
 "-1:19bd614293ae2e6dd4fb93d7c00e50000d95b6a14784d05fff84d031e6f990db",
 "-1:660ecab3220da2f1f770d016fb50669f03719cd6a5f92188e9e80399c0695fbe",
@@ -288,7 +288,7 @@ TonlibWorkerResponse TonlibPostProcessor::process_getAddressInformation(
     auto std_address = r_std_address.move_as_ok();
     DetectAddressResult address_detect{std_address, "unknown"};
     std::string raw_address = address_detect.to_raw_form(true);
-    if (result->sync_utime_ < 1803189600 && suspended_jettons.contains(raw_address)) {
+    if (result->sync_utime_ < 1803189600 && suspended_accounts.contains(raw_address)) {
       builder["suspended"] = true;
     }
   }

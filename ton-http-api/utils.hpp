@@ -54,6 +54,10 @@ inline std::optional<std::string> stringToHash(const std::string& str) {
     if (auto res = td::base64url_decode(str); res.is_ok()) {
       return res.move_as_ok();
     }
+  } else if (str.length() == 43) {
+    if (auto res = td::base64url_decode(str); res.is_ok()) {
+      return res.move_as_ok();
+    }
   } else if (str.length() == 64) {
     if (auto res = td::hex_decode(str); res.is_ok()) {
       return res.move_as_ok();

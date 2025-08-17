@@ -29,25 +29,49 @@ std::string ApiV2Handler::HandleRequestThrow(
   auto ton_api_method_case_sensitive = request.GetPathArg("ton_api_method");
   std::ranges::copy(std::views::transform(ton_api_method_case_sensitive, ::tolower), std::back_inserter(req.ton_api_method));
   for (auto& name : request.ArgNames()) {
-    req.SetArg(name, request.GetArg(name));
+    req.SetArgVector(name, request.GetArgVector(name));
   }
   if (!request.RequestBody().empty()) {
     try {
       auto body = userver::formats::json::FromString(request.RequestBody());
       for (auto it = body.begin(); it != body.end(); ++it) {
-        std::string value;
-        if (it->IsArray() || it->IsObject()) {
-          value = ToString(*it);
+        std::vector<std::string> value;
+        if (it->IsArray()) {
+          for (auto item = it->begin(); item != it->end(); ++item) {
+            std::string val;
+            if (item->IsObject()) {
+              val = ToString(*it);
+            }
+            if (item->IsString()) {
+              val = it->As<std::string>();
+            }
+            if (item->IsInt()) {
+              val = std::to_string(it->As<int>());
+            }
+            if (item->IsBool()) {
+              val = std::to_string(it->As<bool>());
+            }
+            value.push_back(val);
+          }
+        }
+        if (it->IsObject()) {
+          auto val = ToString(*it);
+          value.push_back(val);
         }
         if (it->IsString()) {
-          value = it->As<std::string>();
+          auto val = it->As<std::string>();
+          value.push_back(val);
         }
         if (it->IsInt()) {
-          value = std::to_string(it->As<int>());
+          auto val = std::to_string(it->As<int>());
+          value.push_back(val);
         }
-
-        LOG_DEBUG_TO(*logger_) << "Arg: " << it.GetName() << " Value: " << value;
-        req.SetArg(it.GetName(), std::move(value));
+        if (it->IsBool()) {
+          auto val = std::to_string(it->As<bool>());
+          value.push_back(val);
+        }
+        req.SetArgVector(it.GetName(), value);
+        LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
       }
     } catch (const userver::formats::json::ParseException& e) {
       request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
@@ -76,20 +100,43 @@ std::string ApiV2Handler::HandleRequestThrow(
 
     auto body = userver::formats::json::FromString(req.GetArg("params"));
     for (auto it = body.begin(); it != body.end(); ++it) {
-      std::string value;
-      if (it->IsArray() || it->IsObject()) {
-        value = ToString(*it);
+      std::vector<std::string> value;
+      if (it->IsArray()) {
+        for (auto item = it->begin(); item != it->end(); ++item) {
+          std::string val;
+          if (item->IsObject()) {
+            val = ToString(*it);
+          }
+          if (item->IsString()) {
+            val = it->As<std::string>();
+          }
+          if (item->IsInt()) {
+            val = std::to_string(it->As<int>());
+          }
+          if (item->IsBool()) {
+            val = std::to_string(it->As<bool>());
+          }
+          value.push_back(val);
+        }
+      }
+      if (it->IsObject()) {
+        auto val = ToString(*it);
+        value.push_back(val);
       }
       if (it->IsString()) {
-        value = it->As<std::string>();
+        auto val = it->As<std::string>();
+        value.push_back(val);
       }
       if (it->IsInt()) {
-        value = std::to_string(it->As<int>());
+        auto val = std::to_string(it->As<int>());
+        value.push_back(val);
       }
       if (it->IsBool()) {
-        value = std::to_string(it->As<bool>());
+        auto val = std::to_string(it->As<bool>());
+        value.push_back(val);
       }
-      req2.SetArg(it.GetName(), value);
+      req2.SetArgVector(it.GetName(), value);
+      LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
     }
     req = std::move(req2);
   }
@@ -138,7 +185,17 @@ std::string ApiV2Handler::HandleRequestThrow(
   if (IsLogRequired(req, res)) {
     userver::formats::json::ValueBuilder request_params;
     for (auto& [k, v] : req.args) {
-      request_params[k] = v;
+      std::stringstream ss;
+      bool is_first = true;
+      for (auto &i : v) {
+        if (is_first) {
+          is_first = false;
+        } else {
+          ss << ",";
+        }
+        ss << i;
+      }
+      request_params[k] = ss.str();
     }
     log_extra.Extend("request_params", ToString(request_params.ExtractValue()));
     log_extra.Extend("response", response_str);
@@ -520,6 +577,23 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
   if (ton_api_method == "getconfigall") {
     auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getConfigAll, seqno, nullptr);
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+  }
+
+  if (ton_api_method == "getlibraries") {
+    std::vector<std::string> libs;
+
+    std::stringstream ss;
+    for (auto &l : request.GetArgVector("libraries")) {
+      auto lib = utils::stringToHash(l);
+      if (!lib.has_value()) {
+        return core::TonlibWorkerResponse::from_error_string("failed to parse library", 422, nullptr);
+      }
+      ss << lib.value() << ";";
+      libs.push_back(std::move(lib.value()));
+    }
+    LOG_ERROR_TO(*logger_) << "getlibraries: " << libs;
+    auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getLibraries, libs, nullptr);
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
