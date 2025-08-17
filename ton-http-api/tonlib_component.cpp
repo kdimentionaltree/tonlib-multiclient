@@ -33,6 +33,19 @@ TonlibComponent::TonlibComponent(
     external_message_endpoints_(config["external_message_endpoints"].As<std::vector<std::string>>(std::vector<std::string>{})),
     logger_(context.FindComponent<userver::components::Logging>().GetLogger("api-v2")),
     http_client_(context.FindComponent<userver::components::HttpClient>().GetHttpClient()){
+  if(external_message_endpoints_.size()) {
+    std::stringstream ss;
+    bool is_first = false;
+    for(auto& endpoint : external_message_endpoints_) {
+      if (is_first) { 
+        is_first = false;
+      } else {
+        ss << ",";
+      }
+      ss << endpoint;
+    }
+    LOG_WARNING_TO(*logger_) << "Found endpoints: " << ss.str();
+  }
 }
 
 bool TonlibComponent::SendBocToExternalRequest(std::string boc_b64) {
