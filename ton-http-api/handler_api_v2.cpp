@@ -39,7 +39,7 @@ std::string ApiV2Handler::HandleRequestThrow(
         if (it->IsArray()) {
           for (auto item = it->begin(); item != it->end(); ++item) {
             std::string val;
-            if (item->IsObject()) {
+            if (it->IsArray() || item->IsObject()) {
               val = ToString(*it);
             }
             if (item->IsString()) {
