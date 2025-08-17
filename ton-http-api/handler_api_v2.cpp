@@ -136,6 +136,11 @@ std::string ApiV2Handler::HandleRequestThrow(
   log_extra.Extend("url", request.GetUrl());
   log_extra.Extend("status_code", code);
   if (IsLogRequired(req, res)) {
+    userver::formats::json::ValueBuilder request_params;
+    for (auto& [k, v] : req.args) {
+      request_params[k] = v;
+    }
+    log_extra.Extend("request_params", ToString(request_params.ExtractValue()));
     log_extra.Extend("response", response_str);
     LOG_WARNING_TO(*logger_) << log_extra;
   } else {
@@ -598,8 +603,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
   }
 
-  return {false, nullptr, std::nullopt,
-    td::Status::Error(404, "method not found"), nullptr};
+  return {false, nullptr, std::nullopt, td::Status::Error(404, "method not found"), nullptr};
 }
 bool ApiV2Handler::IsLogRequired(const TonlibApiRequest& request, const core::TonlibWorkerResponse& response) const {
   if (request.is_debug_request) {
@@ -611,10 +615,13 @@ bool ApiV2Handler::IsLogRequired(const TonlibApiRequest& request, const core::To
   if (response.error.has_value()) {
     auto& error = response.error.value();
     auto status_code = error.code();
+    if (status_code == 404) {
+      return false;
+    }
     if (status_code == 409) {
       return false;
     }
-    if (status_code == 500 && request.ton_api_method.starts_with("sendboc")) {
+    if ((status_code == 500 || status_code == 0) && request.ton_api_method.starts_with("sendboc")) {
       return false;
     }
   }
