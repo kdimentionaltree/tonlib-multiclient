@@ -4,18 +4,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: --config /run/secrets/static-config
+    command: --config /app/static_config.yaml
     ports:
-      - 8877:8877
-      - 8878:8878
+      - 8877:8081
+      - 8878:8082
     restart: unless-stopped
     secrets:
       - ton-global-config
       - static-config
     ulimits:
-      memlock: 1048576
+      memlock: 4194304
 secrets:
   ton-global-config:
     file: ${TON_BLOCKCHAIN_CONFIG_PATH:-private/private-config.json}
-  static-config:
-    file: ${TON_SERVICE_CONFIG_PATH:-config/static_config_compose.yaml}
+  config-vars:
+    file: ${TON_SERVICE_CONFIG_PATH:-private/config-vars.yaml}

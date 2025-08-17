@@ -1,63 +1,97 @@
+config_vars: /run/secrets/config-vars
 components_manager:
   task_processors:
     main-task-processor:
-      worker_threads: 16
+      worker_threads: $main_worker_threads
+      worker_threads#fallback: 4
     fs-task-processor:
-      worker_threads: 2
+      thread_name: blocking_thread
+      worker_threads: $fs_worker_threads
+      worker_threads#fallback: 2
     monitor-task-processor:
       thread_name: monitor_thread
-      worker_threads: 1
+      worker_threads: $monitor_worker_threads
+      worker_threads#fallback: 1
   default_task_processor: main-task-processor
   components:
     server:
       listener:
-        port: 8877
+        port: $server_port
+        port#fallback: 8081
         connection:
           in_buffer_size: 1048576
           requests_queue_size_threshold: 1024
         task_processor: main-task-processor
+        handler-defaults:
+          max_url_size: 8192
+          max_request_size: 1048576
+          max_headers_size: 65536
+          set_tracing_headers: false
       listener-monitor:
-        port: 8878
+        port: $monitor_port
+        port#fallback: 8082
         task_processor: monitor-task-processor
     logging:
       fs-task-processor: fs-task-processor
       loggers:
         default:
-          file_path: "@null"
-          level: warning
-          format: json
+          file_path: $system_log_path
+          file_path#fallback: "@stdout"
+          level: $system_log_level
+          level#fallback: warning
+          format: $log_format
+          format#fallback: json
           overflow_behavior: discard
         api-v2:
-          file_path: "@stdout"
-          level: info
-          format: json
+          file_path: $log_path
+          file_path#fallback: "@stdout"
+          level: $log_level
+          level#fallback: warning
+          format: $log_format
+          format#fallback: json
           overflow_behavior: discard
     tonlib:
-      global_config: /run/secrets/ton-global-config
-      keystore: /tmp/keystore/
-      threads: 16
-      external_message_endpoints:
+      global_config: $tonlib_config_path
+      global_config#fallback: /run/secrets/ton-global-config
+      keystore: $tonlib_keystore_path
+      keystore#fallback: /tmp/keystore/
+      threads: $tonlib_threads
+      threads#fallback: 4
+      external_message_endpoints: $tonlib_boc_endpoints
+      external_message_endpoints#fallback: []
       task_processor: main-task-processor
+    #    tonlib-cache:
+    #      ways: 64
+    #      size: 1024
     dns-client:
       fs-task-processor: fs-task-processor
     http-client:
       pool-statistics-disable: false
       thread-name-prefix: http-client
-      threads: 8
+      threads: $http_worker_threads
+      threads#fallback: 8
       fs-task-processor: fs-task-processor
       destination-metrics-auto-max-size: 100
-      user-agent: empty
+      user-agent: $http_worker_user_agent
+      user-agent#fallback: empty
     handler-server-monitor:
-      path: /stats
+      path: $monitor_path
+      path#fallback: /stats
       method: GET
       task_processor: monitor-task-processor
       format: json
     handler-ping:
-      path: /health
+      path: $ping_path
+      path#fallback: /health
       method: GET
       task_processor: main-task-processor
       log-level: warning
+      throttling_enabled: false
+      url_trailing_slash: strict-match
     handler-api-v2:
       path: /api/v2/{ton_api_method}
       method: GET,POST
+      status-codes-log-level:
+        409: debug
+        500: debug
       task_processor: main-task-processor
