@@ -203,6 +203,7 @@ std::string ApiV2Handler::HandleRequestThrow(
     }
     log_extra.Extend("request_params", ToString(request_params.ExtractValue()));
     log_extra.Extend("response", response_str);
+    log_extra.Extend("body", request.RequestBody());
     LOG_WARNING_TO(*logger_) << log_extra;
   } else {
     LOG_INFO_TO(*logger_) << log_extra;

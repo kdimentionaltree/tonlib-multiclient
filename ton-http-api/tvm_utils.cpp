@@ -231,6 +231,9 @@ td::Result<std::string> ton_http::tvm::number_from_tvm_stack_entry(tonlib_api::o
 
 
 td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_http::tvm::parse_stack(const std::string& stack_string) {
+  if (stack_string.empty()) {
+    return std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>{};
+  }
   std::string stack_str = stack_string;
   TRY_RESULT(json_value, td::json_decode(td::MutableSlice(stack_str)));
 
