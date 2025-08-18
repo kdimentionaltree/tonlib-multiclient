@@ -75,7 +75,7 @@ std::string ApiV2Handler::HandleRequestThrow(
         for (auto& i : value) {
           ss1 << i << ";";
         }
-        LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
+        // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
       }
     } catch (const userver::formats::json::ParseException& e) {
       request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
@@ -108,7 +108,7 @@ std::string ApiV2Handler::HandleRequestThrow(
       if (it->IsArray()) {
         for (auto item = it->begin(); item != it->end(); ++item) {
           std::string val;
-          if (item->IsObject()) {
+          if (item->IsArray() || item->IsObject()) {
             val = ToString(*it);
           }
           if (item->IsString()) {
