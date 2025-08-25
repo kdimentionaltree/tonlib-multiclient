@@ -2,7 +2,6 @@
 
 #include "userver/formats/json.hpp"
 #include "utils.hpp"
-#include "tvm_utils.h"
 
 namespace ton_http::core {
 
@@ -1365,7 +1364,7 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::ok>> TonlibWorker::forgetContra
 TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     const std::string& address,
     const std::string& method_name,
-    const std::string& stack,
+    const std::vector<std::string>& stack,
     std::optional<ton::BlockSeqno> seqno,
     std::optional<bool> archival,
     multiclient::SessionPtr session
@@ -1376,7 +1375,7 @@ TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     return {r_smc_info.move_as_error(), session};
   }
   auto smc_info = r_smc_info.move_as_ok();
-  auto r_stack = tvm::parse_stack(stack);
+  auto r_stack = utils::parse_stack(stack);
   if (r_stack.is_error()) {
     return {r_stack.move_as_error(), session};
   }
@@ -1385,7 +1384,7 @@ TonlibWorker::Result<RunGetMethodResult> TonlibWorker::runGetMethod(
     .request_creator =
         [id_ = smc_info->id_, method_name_ = method_name, stack_str = stack] {
           auto method_int = td::string_to_int256(method_name_);
-          auto stack = tvm::parse_stack(stack_str).move_as_ok();
+          auto stack = utils::parse_stack(stack_str).move_as_ok();
           if (method_int.is_null()) {
             return tonlib_api::make_object<tonlib_api::smc_runGetMethod>(
                 id_, tonlib_api::make_object<tonlib_api::smc_methodIdName>(method_name_), std::move(stack)
@@ -1519,21 +1518,21 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   auto data = std::make_unique<JettonMasterDataResult>(address);
 
   // total_supply_
-  auto r_total_supply = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  auto r_total_supply = utils::number_from_tvm_stack_entry(result->stack_[0]);
   if (r_total_supply.is_error()) {
     return {r_total_supply.move_as_error(), std::move(session)};
   }
   data->total_supply_ = r_total_supply.move_as_ok();
 
   // mintable_
-  auto r_mintable = tvm::number_from_tvm_stack_entry(result->stack_[1]);
+  auto r_mintable = utils::number_from_tvm_stack_entry(result->stack_[1]);
   if (r_mintable.is_error()) {
     return {r_mintable.move_as_error(), std::move(session)};
   }
   data->mintable_ = std::stoi(r_mintable.move_as_ok());
 
   // admin_address_
-  auto r_admin_address = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  auto r_admin_address = utils::address_from_tvm_stack_entry(result->stack_[2]);
   if (r_admin_address.is_error()) {
     return {r_admin_address.move_as_error(), std::move(session)};
   }
@@ -1550,7 +1549,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   }
   auto jetton_content_cell = r_jetton_content_cell.move_as_ok();
 
-  auto r_jetton_content = tvm::parse_token_data(std::move(jetton_content_cell));
+  auto r_jetton_content = utils::parse_token_data(std::move(jetton_content_cell));
   if (r_jetton_content.is_error()) {
     return {r_jetton_content.move_as_error_prefix("Failed to parse jetton content from the cell: "), std::move(session)};
   }
@@ -1608,21 +1607,21 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   auto data = std::make_unique<JettonWalletDataResult>(address);
 
   // balance_
-  auto r_balance = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  auto r_balance = utils::number_from_tvm_stack_entry(result->stack_[0]);
   if (r_balance.is_error()) {
     return {r_balance.move_as_error(), std::move(session)};
   }
   data->balance_ = r_balance.move_as_ok();
 
   // owner_address_
-  auto r_owner_address_ = tvm::address_from_tvm_stack_entry(result->stack_[1]);
+  auto r_owner_address_ = utils::address_from_tvm_stack_entry(result->stack_[1]);
   if (r_owner_address_.is_error()) {
     return {r_owner_address_.move_as_error(), std::move(session)};
   }
   data->owner_address_ = r_owner_address_.move_as_ok();
 
   // jetton_master_address_
-  auto r_jetton_master_address = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  auto r_jetton_master_address = utils::address_from_tvm_stack_entry(result->stack_[2]);
   if (r_jetton_master_address.is_error()) {
     return {r_jetton_master_address.move_as_error(), std::move(session)};
   }
@@ -1723,7 +1722,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkJetton
   //   LOG(ERROR) << block::StdAddress(addr.workchain_id, addr.address);
   // }
 
-  auto r_wallet_address_from_master = tvm::address_from_tvm_stack_entry(result_2->stack_[0]);
+  auto r_wallet_address_from_master = utils::address_from_tvm_stack_entry(result_2->stack_[0]);
   if (r_wallet_address_from_master.is_error()) {
     return {r_wallet_address_from_master.move_as_error(), std::move(session)};
   }
@@ -1795,7 +1794,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCol
   if (result->stack_[0]->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
     return {td::Status::Error(500, "stackEntryNumber expected at 0 position"), std::move(session)};
   }
-  auto r_next_item_index = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  auto r_next_item_index = utils::number_from_tvm_stack_entry(result->stack_[0]);
   if (r_next_item_index.is_error()) {
     return {r_next_item_index.move_as_error(), std::move(session)};
   }
@@ -1812,7 +1811,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCol
   }
   auto collection_content_cell = r_collection_content_cell.move_as_ok();
 
-  auto r_collection_content = tvm::parse_token_data(std::move(collection_content_cell));
+  auto r_collection_content = utils::parse_token_data(std::move(collection_content_cell));
   if (r_collection_content.is_error()) {
     return {r_collection_content.move_as_error_prefix("Failed to parse jetton content from the cell: "), std::move(session)};
   }
@@ -1821,7 +1820,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTCol
   data->collection_content_ = std::move(collection_content);
 
   // owner_address_
-  auto r_owner_address_ = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  auto r_owner_address_ = utils::address_from_tvm_stack_entry(result->stack_[2]);
   if (r_owner_address_.is_error()) {
     return {r_owner_address_.move_as_error(), std::move(session)};
   }
@@ -1871,7 +1870,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
   auto data = std::make_unique<NFTItemDataResult>(address);
 
   // init_
-  auto r_init = tvm::number_from_tvm_stack_entry(result->stack_[0]);
+  auto r_init = utils::number_from_tvm_stack_entry(result->stack_[0]);
   if (r_init.is_error()) {
     return {r_init.move_as_error(), std::move(session)};
   }
@@ -1879,21 +1878,21 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
 
 
   // index_
-  auto r_index = tvm::number_from_tvm_stack_entry(result->stack_[1]);
+  auto r_index = utils::number_from_tvm_stack_entry(result->stack_[1]);
   if (r_index.is_error()) {
     return {r_index.move_as_error(), std::move(session)};
   }
   data->index_ = r_index.move_as_ok();
 
   // collection_address_
-  auto r_collection_address = tvm::address_from_tvm_stack_entry(result->stack_[2]);
+  auto r_collection_address = utils::address_from_tvm_stack_entry(result->stack_[2]);
   if (r_collection_address.is_error()) {
     return {r_collection_address.move_as_error(), std::move(session)};
   }
   data->collection_address_ = r_collection_address.move_as_ok();
 
   // owner_address_
-  auto r_owner_address_ = tvm::address_from_tvm_stack_entry(result->stack_[3]);
+  auto r_owner_address_ = utils::address_from_tvm_stack_entry(result->stack_[3]);
   if (r_owner_address_.is_error()) {
     return {r_owner_address_.move_as_error(), std::move(session)};
   }
@@ -1912,7 +1911,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
     }
     auto content_cell = r_content_cell.move_as_ok();
 
-    auto r_content = tvm::parse_token_data(std::move(content_cell));
+    auto r_content = utils::parse_token_data(std::move(content_cell));
     if (r_content.is_error()) {
       return {r_content.move_as_error_prefix("Failed to parse jetton content from the cell: "), std::move(session)};
     }
@@ -1971,7 +1970,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
   }
   auto& entry = static_cast<tonlib_api::tvm_stackEntryCell&>(*(result_2->stack_[0]));
 
-  auto r_address_from_collection = tvm::address_from_tvm_stack_entry(result_2->stack_[0]);
+  auto r_address_from_collection = utils::address_from_tvm_stack_entry(result_2->stack_[0]);
   if (r_address_from_collection.is_error()) {
     return {r_address_from_collection.move_as_error(), std::move(session)};
   }
@@ -2034,7 +2033,7 @@ TonlibWorker::Result<std::unique_ptr<TokenDataResult>> TonlibWorker::checkNFTIte
   }
   auto content_cell = r_content_cell.move_as_ok();
 
-  auto r_content = tvm::parse_token_data(std::move(content_cell));
+  auto r_content = utils::parse_token_data(std::move(content_cell));
   if (r_content.is_error()) {
     return {r_content.move_as_error_prefix("Failed to parse jetton content from the cell: "), std::move(session)};
   }

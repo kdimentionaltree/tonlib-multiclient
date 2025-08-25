@@ -8,7 +8,8 @@
 #include "openapi/openapi_page.hpp"
 #include "td/utils/JsonBuilder.h"
 #include "tl/tl_json.h"
-#include "tvm_utils.h"
+#include "userver/cache/expirable_lru_cache.hpp"
+#include "userver/cache/lru_cache_component_base.hpp"
 #include "userver/components/component_context.hpp"
 #include "userver/http/common_headers.hpp"
 #include "userver/logging/component.hpp"
@@ -16,145 +17,8 @@
 #include "utils.hpp"
 
 namespace ton_http::handlers {
-std::string ApiV2Handler::HandleRequestThrow(
-    const userver::server::http::HttpRequest& request, userver::server::request::RequestContext& context
-) const {
-  TonlibApiRequest req;
-  req.http_method = request.GetMethodStr();
-  {
-    auto debug_request_header = request.GetHeader("X-Debug-Request");
-    auto debug_request = utils::stringToBool(debug_request_header);
-    req.is_debug_request = debug_request.has_value() && debug_request.value();
-  }
-  auto ton_api_method_case_sensitive = request.GetPathArg("ton_api_method");
-  std::ranges::copy(std::views::transform(ton_api_method_case_sensitive, ::tolower), std::back_inserter(req.ton_api_method));
-  for (auto& name : request.ArgNames()) {
-    req.SetArgVector(name, request.GetArgVector(name));
-  }
-  if (!request.RequestBody().empty()) {
-    try {
-      auto body = userver::formats::json::FromString(request.RequestBody());
-      for (auto it = body.begin(); it != body.end(); ++it) {
-        std::vector<std::string> value;
-        if (it->IsArray()) {
-          for (auto item = it->begin(); item != it->end(); ++item) {
-            std::string val;
-            if (it->IsArray() || item->IsObject()) {
-              val = ToString(*it);
-            }
-            if (item->IsString()) {
-              val = it->As<std::string>();
-            }
-            if (item->IsInt()) {
-              val = std::to_string(it->As<int>());
-            }
-            if (item->IsBool()) {
-              val = std::to_string(it->As<bool>());
-            }
-            value.push_back(val);
-          }
-        }
-        if (it->IsObject()) {
-          auto val = ToString(*it);
-          value.push_back(val);
-        }
-        if (it->IsString()) {
-          auto val = it->As<std::string>();
-          value.push_back(val);
-        }
-        if (it->IsInt()) {
-          auto val = std::to_string(it->As<int>());
-          value.push_back(val);
-        }
-        if (it->IsBool()) {
-          auto val = std::to_string(it->As<bool>());
-          value.push_back(val);
-        }
-        req.SetArgVector(it.GetName(), value);
-        std::stringstream ss1;
-        for (auto& i : value) {
-          ss1 << i << ";";
-        }
-        // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
-      }
-    } catch (const userver::formats::json::ParseException& e) {
-      request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
-      auto response = userver::formats::json::ValueBuilder();
-      response["ok"] = false;
-      response["code"] = 422;
-      response["error"] = e.what();
-      return userver::formats::json::ToString(response.ExtractValue());
-    }
-  }
-
-  if (req.ton_api_method == "index.html" || req.ton_api_method.empty()) {
-    request.GetHttpResponse().SetHeader(userver::http::headers::kContentType, "text/html; charset=utf-8");
-    return openapi::GetOpenApiPage();
-  }
-  if (req.ton_api_method == "openapi.json") {
-    request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
-    return openapi::GetOpenApiJson();
-  }
-
-  if (req.ton_api_method == "jsonrpc") {
-    TonlibApiRequest req2;
-    req2.http_method = req.http_method;
-    auto api_method_case_sensitive = req.GetArg("method");
-    std::ranges::copy(std::views::transform(api_method_case_sensitive, ::tolower), std::back_inserter(req2.ton_api_method));
-
-    auto body = userver::formats::json::FromString(req.GetArg("params"));
-    for (auto it = body.begin(); it != body.end(); ++it) {
-      std::vector<std::string> value;
-      if (it->IsArray()) {
-        for (auto item = it->begin(); item != it->end(); ++item) {
-          std::string val;
-          if (item->IsArray() || item->IsObject()) {
-            val = ToString(*it);
-          }
-          if (item->IsString()) {
-            val = it->As<std::string>();
-          }
-          if (item->IsInt()) {
-            val = std::to_string(it->As<int>());
-          }
-          if (item->IsBool()) {
-            val = std::to_string(it->As<bool>());
-          }
-          value.push_back(val);
-        }
-      }
-      if (it->IsObject()) {
-        auto val = ToString(*it);
-        value.push_back(val);
-      }
-      if (it->IsString()) {
-        auto val = it->As<std::string>();
-        value.push_back(val);
-      }
-      if (it->IsInt()) {
-        auto val = std::to_string(it->As<int>());
-        value.push_back(val);
-      }
-      if (it->IsBool()) {
-        auto val = std::to_string(it->As<bool>());
-        value.push_back(val);
-      }
-      req2.SetArgVector(it.GetName(), value);
-      // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " value: " << value.size();
-    }
-    req = std::move(req2);
-  }
-
-  // call method
-  auto res = HandleTonlibRequest(req);
-
-  // prepare response
-  request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
-  auto code = res.is_ok ? 200 : res.error->code();
-  if (code == 0) { code = 500; }
-  if (code == -3) { code = 500; }
-  request.GetHttpResponse().SetStatus(static_cast<userver::server::http::HttpStatus>(code));
-  auto response = userver::formats::json::ValueBuilder();
+userver::formats::json::Value ApiV2Handler::build_json_response(const core::TonlibWorkerResponse& res) const {
+  userver::formats::json::ValueBuilder response;
   response["ok"] = res.is_ok;
   if (res.is_ok) {
     if (res.result) {
@@ -179,19 +43,35 @@ std::string ApiV2Handler::HandleRequestThrow(
   if (res.session) {
     response["@extra"] = res.session->to_string();
   }
-  auto response_str = userver::formats::json::ToString(response.ExtractValue());
-
+  return response.ExtractValue();
+}
+void ApiV2Handler::log_request(
+    const userver::server::http::HttpRequest& request,
+    const TonlibApiRequest& req,
+    const core::TonlibWorkerResponse& res,
+    const std::string& response_body
+) const {
   userver::logging::LogExtra log_extra;
   log_extra.Extend("http_method", req.http_method);
   log_extra.Extend("ton_api_method", req.ton_api_method);
   log_extra.Extend("url", request.GetUrl());
-  log_extra.Extend("status_code", code);
-  if (IsLogRequired(req, res)) {
+
+  auto code = res.is_ok ? 200 : res.error->code();
+  if (code == 0) {
+    code = 500;
+  }
+  if (code == -3) {
+    code = 500;
+  }
+
+  log_extra.Extend("status_code", res.is_ok ? 200 : res.error->code());
+  log_extra.Extend("status_code_fixed", code);
+  if (is_log_required(req, res)) {
     userver::formats::json::ValueBuilder request_params;
     for (auto& [k, v] : req.args) {
       std::stringstream ss;
       bool is_first = true;
-      for (auto &i : v) {
+      for (auto& i : v) {
         if (is_first) {
           is_first = false;
         } else {
@@ -202,21 +82,137 @@ std::string ApiV2Handler::HandleRequestThrow(
       request_params[k] = ss.str();
     }
     log_extra.Extend("request_params", ToString(request_params.ExtractValue()));
-    log_extra.Extend("response", response_str);
+    log_extra.Extend("response", response_body);
     log_extra.Extend("body", request.RequestBody());
     LOG_WARNING_TO(*logger_) << log_extra;
   } else {
     LOG_INFO_TO(*logger_) << log_extra;
   }
+}
+
+std::vector<std::string> ApiV2Handler::parse_request_body_item(const userver::formats::json::Value& value, int parse_array_depth) const {
+  if (value.IsArray()) {
+    if (parse_array_depth == 0) {
+      return {ToString(value)};
+    }
+    std::vector<std::string> result;
+    for (auto item = value.begin(); item != value.end(); ++item) {
+      auto loc = parse_request_body_item(*item, std::max(parse_array_depth - 1, 0));
+      result.push_back(loc[0]);
+    }
+    return result;
+  }
+  if (value.IsObject()) {
+    return {ToString(value)};
+  }
+  if (value.IsString()) {
+    return {value.As<std::string>()};
+  }
+  if (value.IsInt()) {
+    return {std::to_string(value.As<int>())};
+  }
+  if (value.IsBool()) {
+    return {std::to_string(value.As<bool>())};
+  }
+  return {};
+}
+
+
+std::string ApiV2Handler::HandleRequestThrow(
+    const userver::server::http::HttpRequest& request, userver::server::request::RequestContext& context
+) const {
+  TonlibApiRequest req;
+  req.http_method = request.GetMethodStr();
+  {
+    const auto& debug_request_header = request.GetHeader("X-Debug-Request");
+    auto debug_request = utils::stringToBool(debug_request_header);
+    req.is_debug_request = debug_request.has_value() && debug_request.value();
+  }
+  auto ton_api_method_case_sensitive = request.GetPathArg("ton_api_method");
+  std::ranges::copy(std::views::transform(ton_api_method_case_sensitive, ::tolower), std::back_inserter(req.ton_api_method));
+  for (auto& name : request.ArgNames()) {
+    req.SetArgVector(name, request.GetArgVector(name));
+  }
+  if (!request.RequestBody().empty()) {
+    try {
+      auto body = userver::formats::json::FromString(request.RequestBody());
+      for (auto it = body.begin(); it != body.end(); ++it) {
+        auto value = parse_request_body_item(*it, 1);
+        req.SetArgVector(it.GetName(), value);
+        std::stringstream ss1;
+        for (auto& i : value) { ss1 << i << ";"; }
+        LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
+      }
+    } catch (const userver::formats::json::ParseException& e) {
+      request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
+      auto response = userver::formats::json::ValueBuilder();
+      response["ok"] = false;
+      response["code"] = 422;
+      response["error"] = e.what();
+      return userver::formats::json::ToString(response.ExtractValue());
+    }
+  }
+
+  // handle request
+  if (req.ton_api_method == "index.html" || req.ton_api_method.empty()) {
+    request.GetHttpResponse().SetHeader(userver::http::headers::kContentType, "text/html; charset=utf-8");
+    return openapi::GetOpenApiPage();
+  }
+  if (req.ton_api_method == "openapi.json") {
+    request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
+    return openapi::GetOpenApiJson();
+  }
+
+  if (req.ton_api_method == "jsonrpc") {
+    TonlibApiRequest jsonrpc_req;
+    jsonrpc_req.http_method = req.http_method;
+    auto api_method_case_sensitive = req.GetArg("method");
+    std::ranges::copy(std::views::transform(api_method_case_sensitive, ::tolower), std::back_inserter(jsonrpc_req.ton_api_method));
+
+    auto body = userver::formats::json::FromString(req.GetArg("params"));
+    for (auto it = body.begin(); it != body.end(); ++it) {
+      auto value = parse_request_body_item(*it, 1);
+      jsonrpc_req.SetArgVector(it.GetName(), value);
+      std::stringstream ss1;
+      for (auto& i : value) { ss1 << i << ";"; }
+      LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
+    }
+    req = std::move(jsonrpc_req);
+  }
+
+  // call method
+  userver::formats::json::Value response;
+  auto cached_response = cache_component_.Get(req);
+  if (cached_response.has_value()) {
+    response = std::move(cached_response.value());
+    auto response_builder = userver::formats::json::ValueBuilder(response);
+    response_builder["@extra"] = response["@extra"].As<std::string>("") + ":c";
+    auto response_str = userver::formats::json::ToString(response_builder.ExtractValue());
+    request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
+    request.GetHttpResponse().SetStatus(userver::server::http::HttpStatus::kOk);
+    return response_str;
+  }
+  auto res = HandleTonlibRequest(req);
+
+  // prepare response
+  request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
+  auto code = res.is_ok ? 200 : res.error->code();
+  if (code == 0) { code = 500; }
+  if (code == -3) { code = 500; }
+  request.GetHttpResponse().SetStatus(static_cast<userver::server::http::HttpStatus>(code));
+  response = build_json_response(res);
+  auto response_str = userver::formats::json::ToString(response);
+  log_request(request, req, res, response_str);
+  cache_component_.Put(req, response);
   return response_str;
 }
 ApiV2Handler::ApiV2Handler(
     const userver::components::ComponentConfig& config, const userver::components::ComponentContext& context
 ) :
-    HttpHandlerBase(config, context), tonlib_component_(context.FindComponent<core::TonlibComponent>()) {
-  auto& logging_component =
-      context.FindComponent<userver::components::Logging>();
-  logger_ = logging_component.GetLogger("api-v2");
+  HttpHandlerBase(config, context),
+  tonlib_component_(context.FindComponent<core::TonlibComponent>()),
+  cache_component_(context.FindComponent<cache::CacheApiV2Component>()),
+  logger_(context.FindComponent<userver::components::Logging>().GetLogger("api-v2")) {
 }
 core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequest& request) const {
   std::string ton_api_method;
@@ -634,7 +630,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
   if (ton_api_method == "rungetmethod") {
     auto address = request.GetArg("address");
     auto method = request.GetArg("method");
-    auto stack = request.GetArg("stack");
+    auto stack = request.GetArgVector("stack");
     auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
     auto archival = utils::stringToBool(request.GetArg("archival"));
 
@@ -684,7 +680,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
 
   return {false, nullptr, std::nullopt, td::Status::Error(404, "method not found"), nullptr};
 }
-bool ApiV2Handler::IsLogRequired(const TonlibApiRequest& request, const core::TonlibWorkerResponse& response) const {
+bool ApiV2Handler::is_log_required(const TonlibApiRequest& request, const core::TonlibWorkerResponse& response) const {
   if (request.is_debug_request) {
     return true;
   }

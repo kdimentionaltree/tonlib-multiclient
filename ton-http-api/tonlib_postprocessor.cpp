@@ -2,8 +2,8 @@
 
 #include "crypto/common/bitstring.h"
 #include "td/utils/overloaded.h"
-#include "tvm_utils.h"
 #include "userver/formats/json.hpp"
+#include "utils.hpp"
 
 namespace ton_http::core {
 
@@ -493,7 +493,7 @@ TonlibWorkerResponse TonlibPostProcessor::process_runGetMethod(
   auto result = res.move_as_ok();
 
   ValueBuilder builder(FromString(result.to_json_string()));
-  builder["stack"] = tvm::serialize_tvm_stack(result.result->stack_);
+  builder["stack"] = utils::serialize_tvm_stack(result.result->stack_);
   auto ress = ToString(builder.ExtractValue());
   return TonlibWorkerResponse{true, nullptr, ress, std::nullopt, std::move(session)};
 }

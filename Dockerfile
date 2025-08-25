@@ -26,7 +26,7 @@ COPY CMakeLists.txt /app/CMakeLists.txt
 
 WORKDIR /app/build
 RUN cmake -DCMAKE_BUILD_TYPE=Release -DPORTABLE=1 .. && make -j$(nproc) && make install
-COPY config/static_config_compose.yaml /app/static_config.yaml
+COPY config/static_config.yaml /app/static_config.yaml
 ENTRYPOINT [ "ton-http-api-cpp" ]
 
 # FROM ubuntu:24.04

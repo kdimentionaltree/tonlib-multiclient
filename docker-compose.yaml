@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: --config /app/static_config.yaml
+    command: --config /app/static_config.yaml --config_vars /run/secrets/config-vars
     ports:
       - ${SERVER_PORT:-8081}:8081
       - ${MONITOR_PORT:-8082}:8082

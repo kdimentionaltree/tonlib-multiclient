@@ -273,7 +273,7 @@ public:
   Result<RunGetMethodResult> runGetMethod(
     const std::string& address,
     const std::string& method_name,
-    const std::string& stack,
+    const std::vector<std::string>& stack,
     std::optional<ton::BlockSeqno> seqno = std::nullopt,
     std::optional<bool> archival = std::nullopt,
     multiclient::SessionPtr session = nullptr
@@ -319,36 +319,6 @@ private:
     std::optional<bool> archival = std::nullopt,
     multiclient::SessionPtr session = nullptr
   ) const;
-
-  // template<typename T>
-  // Result<typename T::ReturnType> send_request(multiclient::Request<T>&& request, bool retry_archival = false) const {
-  //   auto result = tonlib_.send_request<T, userver::engine::Promise>(request);
-  //   if (!retry_archival || result.is_ok()) {
-  //     return std::make_pair(std::move(result), request.session);
-  //   }
-  //   auto error = result.move_as_error();
-  //
-  //   // retry request with archival
-  //   request.parameters.archival = true;
-  //   if (request.session) {
-  //     auto r_session = tonlib_.update_session(request.parameters, std::move(request.session));
-  //     if (r_session.is_error()) {
-  //       return std::make_pair(r_session.move_as_error(), request.session);
-  //     }
-  //     request.session = r_session.move_as_ok();
-  //   }
-  //
-  //   result = tonlib_.send_request<T, userver::engine::Promise>(request);
-  //   if (result.is_error()) {
-  //     auto error_archival = result.move_as_error();
-  //     LOG(WARNING) << error_archival.code() << " " << error_archival.message();
-  //     if (error_archival.code() == -3) {
-  //       return std::make_pair(std::move(error), request.session);
-  //     }
-  //     return std::make_pair(std::move(error_archival), request.session);
-  //   }
-  //   return std::make_pair(std::move(result), request.session);
-  // }
 
   template<typename T>
   Result<typename T::ReturnType> send_request_function(multiclient::RequestFunction<T>&& request, bool retry_archival = false) const {

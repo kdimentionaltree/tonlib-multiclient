@@ -8,6 +8,7 @@
 
 #include "tonlib/Logging.h"
 #include "tonlib_component.h"
+#include "cache.hpp"
 
 int main(int argc, char* argv[]) {
   tonlib::Logging::set_verbosity_level(1);
@@ -19,5 +20,6 @@ int main(int argc, char* argv[]) {
   component_list.Append<userver::server::handlers::Ping>();
   component_list.Append<ton_http::core::TonlibComponent>();
   component_list.Append<ton_http::handlers::ApiV2Handler>();
+  component_list.Append<ton_http::cache::CacheApiV2Component>();
   return userver::utils::DaemonMain(argc, argv, component_list);
 }

@@ -1,9 +1,9 @@
-#include "tvm_utils.h"
+#include "utils.hpp"
 
 #include "auto/tl/tonlib_api.hpp"
 #include "auto/tl/tonlib_api_json.h"
-#include "tl/tl_json.h"
 #include "block/block.h"
+#include "tl/tl_json.h"
 
 #include "common/refint.h"
 #include "overlay/overlay-broadcast.hpp"
@@ -29,7 +29,7 @@ std::string to_hex_string_with_prefix(td::RefInt256& val) {
 }
 
 
-td::Result<userver::formats::json::Value>  ton_http::tvm::render_tvm_stack(const std::string& stack_str) {
+td::Result<userver::formats::json::Value>  ton_http::utils::render_tvm_stack(const std::string& stack_str) {
   using namespace userver::formats::json;
 
   auto result = ValueBuilder();
@@ -79,7 +79,7 @@ td::Result<std::int64_t> _parse_int(const userver::formats::json::Value& element
 }
 
 
-td::Result<userver::formats::json::Value> ton_http::tvm::render_tvm_element(
+td::Result<userver::formats::json::Value> ton_http::utils::render_tvm_element(
     const std::string& element_type, const userver::formats::json::Value& element
 ) {
   using namespace userver::formats::json;
@@ -111,7 +111,7 @@ td::Result<userver::formats::json::Value> ton_http::tvm::render_tvm_element(
 }
 
 
-userver::formats::json::Value ton_http::tvm::serialize_tvm_entry(tonlib_api::tvm_stackEntryCell& entry) {
+userver::formats::json::Value ton_http::utils::serialize_tvm_entry(tonlib_api::tvm_stackEntryCell& entry) {
   using namespace userver::formats::json;
   ValueBuilder builder;
 
@@ -129,7 +129,7 @@ userver::formats::json::Value ton_http::tvm::serialize_tvm_entry(tonlib_api::tvm
 }
 
 
-userver::formats::json::Value ton_http::tvm::serialize_tvm_entry(tonlib_api::tvm_stackEntrySlice& entry) {
+userver::formats::json::Value ton_http::utils::serialize_tvm_entry(tonlib_api::tvm_stackEntrySlice& entry) {
   using namespace userver::formats::json;
   ValueBuilder builder;
 
@@ -154,7 +154,7 @@ std::string serialize_data_cell(td::Ref<vm::DataCell>& cell) {
   return result;
 }
 
-userver::formats::json::Value ton_http::tvm::serialize_cell(td::Ref<vm::Cell>& cell) {
+userver::formats::json::Value ton_http::utils::serialize_cell(td::Ref<vm::Cell>& cell) {
   using namespace userver::formats::json;
   ValueBuilder builder;
 
@@ -179,7 +179,7 @@ userver::formats::json::Value ton_http::tvm::serialize_cell(td::Ref<vm::Cell>& c
   return builder.ExtractValue();
 }
 
-td::Result<std::string> ton_http::tvm::address_from_cell(std::string data) {
+td::Result<std::string> ton_http::utils::address_from_cell(std::string data) {
   auto r_cell = vm::std_boc_deserialize(std::move(data), true, false);
   if (r_cell.is_error()) {
     return td::Status::Error(500, r_cell.move_as_error().to_string());
@@ -208,7 +208,7 @@ td::Result<std::string> ton_http::tvm::address_from_cell(std::string data) {
   }
   UNREACHABLE();
 }
-td::Result<std::string> ton_http::tvm::address_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry) {
+td::Result<std::string> ton_http::utils::address_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry) {
   std::string data;
   if (entry->get_id() == tonlib_api::tvm_stackEntryCell::ID) {
     auto& entry_cell = static_cast<tonlib_api::tvm_stackEntryCell&>(*entry);
@@ -222,7 +222,7 @@ td::Result<std::string> ton_http::tvm::address_from_tvm_stack_entry(tonlib_api::
 }
 
 
-td::Result<std::string> ton_http::tvm::number_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry) {
+td::Result<std::string> ton_http::utils::number_from_tvm_stack_entry(tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>& entry) {
   if (entry->get_id() != tonlib_api::tvm_stackEntryNumber::ID) {
     return td::Status::Error(500, "stackEntryNumber expected");
   }
@@ -230,22 +230,16 @@ td::Result<std::string> ton_http::tvm::number_from_tvm_stack_entry(tonlib_api::o
 }
 
 
-td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_http::tvm::parse_stack(const std::string& stack_string) {
-  if (stack_string.empty()) {
+td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_http::utils::parse_stack(const std::vector<std::string>& stack_vector) {
+  if (stack_vector.empty()) {
     return std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>{};
   }
-  std::string stack_str = stack_string;
-  TRY_RESULT(json_value, td::json_decode(td::MutableSlice(stack_str)));
-
-  if (json_value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(422, "Invalid stack format: array expected");
-  }
-
-  auto& json_array = json_value.get_array();
-
   std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>> stack;
-  stack.reserve(json_array.size());
-  for (auto &value : json_array) {
+  stack.reserve(stack_vector.size());
+  for (auto &stack_item_const : stack_vector) {
+    std::string stack_item_str = stack_item_const;
+    TRY_RESULT(value, td::json_decode(td::MutableSlice(stack_item_str)));
+
     if (value.type() != td::JsonValue::Type::Array) {
       return td::Status::Error(422, "Invalid stack format: array expected");
     }
@@ -303,7 +297,7 @@ td::Result<std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>> ton_
   return std::move(stack);
 }
 
-userver::formats::json::Value ton_http::tvm::serialize_tvm_stack(
+userver::formats::json::Value ton_http::utils::serialize_tvm_stack(
     std::vector<tonlib_api::object_ptr<tonlib_api::tvm_StackEntry>>& tvm_stack
 ) {
   using namespace userver::formats::json;
@@ -344,7 +338,7 @@ userver::formats::json::Value ton_http::tvm::serialize_tvm_stack(
   return builder.ExtractValue();
 }
 
-td::Result<std::string> ton_http::tvm::parse_snake_data(td::Ref<vm::CellSlice> data) {
+td::Result<std::string> ton_http::utils::parse_snake_data(td::Ref<vm::CellSlice> data) {
   size_t bsize = 1024 * 8;
   unsigned char buffer[bsize];
   td::BitPtr bw{buffer};
@@ -369,7 +363,7 @@ td::Result<std::string> ton_http::tvm::parse_snake_data(td::Ref<vm::CellSlice> d
   return std::string(buffer, bw.get_byte_ptr());
 }
 
-td::Result<std::string> ton_http::tvm::parse_chunks_data(td::Ref<vm::CellSlice> data) {
+td::Result<std::string> ton_http::utils::parse_chunks_data(td::Ref<vm::CellSlice> data) {
   try {
     vm::Dictionary dict(data, 32);
 
@@ -401,7 +395,7 @@ td::Result<std::string> ton_http::tvm::parse_chunks_data(td::Ref<vm::CellSlice> 
   }
 }
 
-td::Result<std::string> ton_http::tvm::parse_content_data(td::Ref<vm::CellSlice> cs) {
+td::Result<std::string> ton_http::utils::parse_content_data(td::Ref<vm::CellSlice> cs) {
   switch (tokens::gen::t_ContentData.check_tag(*cs)) {
     case tokens::gen::ContentData::snake: {
       tokens::gen::ContentData::Record_snake snake_record;
@@ -422,7 +416,7 @@ td::Result<std::string> ton_http::tvm::parse_content_data(td::Ref<vm::CellSlice>
   }
 }
 
-td::Result<std::tuple<bool, std::map<std::string, std::string>>> ton_http::tvm::parse_token_data(td::Ref<vm::Cell> cell) {
+td::Result<std::tuple<bool, std::map<std::string, std::string>>> ton_http::utils::parse_token_data(td::Ref<vm::Cell> cell) {
   static std::string attributes[] = {"uri", "name", "description", "image", "image_data", "symbol", "decimals", "amount_style", "render_type"};
 
   try {

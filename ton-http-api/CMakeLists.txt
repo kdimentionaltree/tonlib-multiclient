@@ -16,10 +16,10 @@ set(TON_HTTP_API_CPP_SOURCE
     handler_api_v2.cpp
     handler_api_v2.h
     tonlib_postprocessor.cpp
-    utils.hpp
-    tvm_utils.h
-    tvm_utils.cpp
+    utils.cpp
     tokens-tlb.cpp
+    cache.cpp
+    request.hpp
 )
 
 # generate tokens schemas
