@@ -96,6 +96,7 @@ struct TonlibWorkerResponse {
   std::optional<std::string> result_str{std::nullopt};
   std::optional<td::Status> error{std::nullopt};
   multiclient::SessionPtr session{nullptr};
+  int cache_ttl{0};
 
   template<typename T>
   static TonlibWorkerResponse from_tonlib_result(td::Result<T>&& result, multiclient::SessionPtr&& session = nullptr) {
@@ -113,6 +114,10 @@ struct TonlibWorkerResponse {
   }
   static TonlibWorkerResponse from_error_string(const std::string& error, const int code = 0, multiclient::SessionPtr&& session = nullptr) {
     return {false, nullptr, std::nullopt, td::Status::Error(code, error), std::move(session)};
+  }
+  TonlibWorkerResponse Cachable(int ttl = 1) {
+    cache_ttl = ttl;
+    return std::move(*this);
   }
 };
 

@@ -203,7 +203,9 @@ std::string ApiV2Handler::HandleRequestThrow(
   response = build_json_response(res);
   auto response_str = userver::formats::json::ToString(response);
   log_request(request, req, res, response_str);
-  cache_component_.Put(req, response);
+  if (res.is_ok && res.cache_ttl > 0) {
+    cache_component_.Put(req, response);
+  }
   return response_str;
 }
 ApiV2Handler::ApiV2Handler(
@@ -226,7 +228,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
 
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno, nullptr);
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressInformation, address, std::move(res), std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressInformation, address, std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getextendedaddressinformation") {
@@ -237,7 +239,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
 
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getExtendedAddressInformation, address, seqno, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getwalletinformation") {
@@ -247,7 +249,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string("address is required", 422, nullptr);
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno, nullptr);
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getWalletInformation, address, std::move(res), std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getWalletInformation, address, std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getaddressbalance") {
@@ -257,7 +259,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string("address is required", 422, nullptr);
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno, nullptr);
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressBalance, address, std::move(res), std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressBalance, address, std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getaddressstate") {
@@ -267,7 +269,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string("address is required", 422, nullptr);
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getAddressInformation, address, seqno, nullptr);
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressState, address, std::move(res), std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getAddressState, address, std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "detectaddress") {
@@ -281,7 +283,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string(error.to_string(), error.code(), std::move(session));
     }
     auto res_str = res.move_as_ok().to_json_string();
-    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session));
+    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session)).Cachable();
   }
 
   if (ton_api_method == "gettokendata") {
@@ -301,7 +303,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string(error.to_string(), error.code(), std::move(session));
     }
     auto res_str = res.move_as_ok()->to_json_string();
-    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session));
+    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session)).Cachable();
   }
 
   if (ton_api_method == "detecthash") {
@@ -315,12 +317,12 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string(error.to_string(), error.code(), std::move(session));
     }
     auto res_str = res.move_as_ok().to_json_string();
-    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session));
+    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getmasterchaininfo") {
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getMasterchainInfo, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
   if (ton_api_method == "getconsensusblock") {
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getConsensusBlock, nullptr);
@@ -329,7 +331,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string(error.to_string(), error.code(), std::move(session));
     }
     auto res_str = res.move_as_ok().to_json_string();
-    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session));
+    return core::TonlibWorkerResponse::from_result_string(res_str, std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getmasterchainblocksignatures") {
@@ -338,7 +340,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string("seqno is required", 422, nullptr);
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getMasterchainBlockSignatures, seqno.value(), nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getshardblockproof") {
@@ -358,7 +360,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getShardBlockProof,
       workchain.value(), shard.value(), seqno.value(), from_seqno, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "lookupblock") {
@@ -376,7 +378,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::lookupBlock,
       workchain.value(), shard.value(), seqno, lt, unixtime, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getshards" || ton_api_method == "shards") {
@@ -385,7 +387,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     auto unixtime = utils::stringToInt<ton::UnixTime>(request.GetArg("unixtime"));
 
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getShards, seqno, lt, unixtime, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getblockheader") {
@@ -412,12 +414,12 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getBlockHeader,
       workchain.value(), shard.value(), seqno.value(), root_hash.value(), file_hash.value(), nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getoutmsgqueuesizes") {
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getOutMsgQueueSizes, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "lookupblock") {
@@ -435,7 +437,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::lookupBlock,
       workchain.value(), shard.value(), seqno, lt, unixtime, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getblocktransactions" || ton_api_method == "getblocktransactionsext") {
@@ -479,7 +481,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getBlockTransactionsExt,
       workchain.value(), shard.value(), seqno.value(), count.value(), root_hash.value(), file_hash.value(), after_lt, after_hash.value(), archival, nullptr);
 
-      return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getBlockTransactionsExt, std::move(res), std::move(session));
+      return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getBlockTransactionsExt, std::move(res), std::move(session)).Cachable();
     }
   }
 
@@ -526,7 +528,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       archival,
       nullptr
     );
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), ton_api_method == "gettransactionsv2", false, std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), ton_api_method == "gettransactionsv2", false, std::move(session)).Cachable();
   }
 
   if (ton_api_method == "trylocatetx" || ton_api_method == "trylocateresulttx") {
@@ -545,7 +547,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
 
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::tryLocateTransactionByIncomingMessage, source, destination, created_lt.value(), nullptr);
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), false, true, std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), false, true, std::move(session)).Cachable();
   }
   if (ton_api_method == "trylocatesourcetx") {
     auto source = request.GetArg("source");
@@ -563,7 +565,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
 
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::tryLocateTransactionByOutgoingMessage, source, destination, created_lt.value(), nullptr);
-    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), false, true, std::move(session));
+    return tonlib_component_.DoPostprocess(&core::TonlibPostProcessor::process_getTransactions, std::move(res), false, true, std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getconfigparam") {
@@ -573,12 +575,12 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       return core::TonlibWorkerResponse::from_error_string("config_id is required", 422, nullptr);
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getConfigParam, config_id.value(), seqno, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
   if (ton_api_method == "getconfigall") {
     auto seqno = utils::stringToInt<ton::BlockSeqno>(request.GetArg("seqno"));
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getConfigAll, seqno, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "getlibraries") {
@@ -595,7 +597,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
     }
     // LOG_ERROR_TO(*logger_) << "getlibraries: " << libs;
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::getLibraries, libs, nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "sendboc") {
@@ -645,7 +647,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       auto error = res.move_as_error();
       return core::TonlibWorkerResponse::from_error_string(error.message().str(), error.code(), std::move(session));
     }
-    return core::TonlibWorkerResponse::from_result_string(res.move_as_ok(), std::move(session));
+    return core::TonlibWorkerResponse::from_result_string(res.move_as_ok(), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "packaddress") {
@@ -655,7 +657,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       auto error = res.move_as_error();
       return core::TonlibWorkerResponse::from_error_string(error.message().str(), error.code(), std::move(session));
     }
-    return core::TonlibWorkerResponse::from_result_string(res.move_as_ok(), std::move(session));
+    return core::TonlibWorkerResponse::from_result_string(res.move_as_ok(), std::move(session)).Cachable();
   }
 
   if (ton_api_method == "estimatefee") {
@@ -675,7 +677,7 @@ core::TonlibWorkerResponse ApiV2Handler::HandleTonlibRequest(const TonlibApiRequ
       ignore_chksig = true;
     }
     auto [res, session] = tonlib_component_.DoRequest(&core::TonlibWorker::queryEstimateFees, address, body, init_code, init_data, ignore_chksig.value(), nullptr);
-    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session));
+    return core::TonlibWorkerResponse::from_tonlib_result(std::move(res), std::move(session)).Cachable();
   }
 
   return {false, nullptr, std::nullopt, td::Status::Error(404, "method not found"), nullptr};

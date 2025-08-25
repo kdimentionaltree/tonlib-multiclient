@@ -1,5 +1,7 @@
 #include "tonlib_worker.h"
 
+#include <utility>
+
 #include "userver/formats/json.hpp"
 #include "utils.hpp"
 
@@ -1356,7 +1358,7 @@ TonlibWorker::Result<std::unique_ptr<tonlib_api::ok>> TonlibWorker::forgetContra
         [id]() {
           return tonlib_api::make_object<tonlib_api::smc_forget>(id);
     },
-    .session = session
+    .session = std::move(session)
   };
   auto [result, new_session] = send_request_function(std::move(request), true);
   return {std::move(result), std::move(new_session)};
