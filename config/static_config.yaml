@@ -59,8 +59,8 @@ components_manager:
       external_message_endpoints#fallback: []
       task_processor: main-task-processor
     cache-api-v2:
-      ways: 64
-      size: 1024
+      ways: 256
+      size: 20480
       lifetime: 1
       background-update: true
     dns-client:
