@@ -139,9 +139,9 @@ std::string ApiV2Handler::HandleRequestThrow(
       for (auto it = body.begin(); it != body.end(); ++it) {
         auto value = parse_request_body_item(*it, 1);
         req.SetArgVector(it.GetName(), value);
-        std::stringstream ss1;
-        for (auto& i : value) { ss1 << i << ";"; }
-        LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
+        // std::stringstream ss1;
+        // for (auto& i : value) { ss1 << i << ";"; }
+        // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
       }
     } catch (const userver::formats::json::ParseException& e) {
       request.GetHttpResponse().SetContentType(userver::http::content_type::kApplicationJson);
@@ -173,9 +173,9 @@ std::string ApiV2Handler::HandleRequestThrow(
     for (auto it = body.begin(); it != body.end(); ++it) {
       auto value = parse_request_body_item(*it, 1);
       jsonrpc_req.SetArgVector(it.GetName(), value);
-      std::stringstream ss1;
-      for (auto& i : value) { ss1 << i << ";"; }
-      LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
+      // std::stringstream ss1;
+      // for (auto& i : value) { ss1 << i << ";"; }
+      // LOG_ERROR_TO(*logger_) << "arg: " << it.GetName() << " size: " << value.size() << " value: " << ss1.str();
     }
     req = std::move(jsonrpc_req);
   }
