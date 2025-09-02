@@ -1,7 +1,7 @@
 # TON HTTP API C++
 
-[![Docker - Image Version](https://img.shields.io/docker/v/toncenter/ton-http-api-cpp?label=docker&sort=semver)](https://hub.docker.com/repository/docker/toncenter/ton-http-api-cpp)
-[![Docker - Image Size](https://img.shields.io/docker/image-size/toncenter/ton-http-api-cpp?label=docker&sort=semver)](https://hub.docker.com/repository/docker/toncenter/ton-http-api-cpp)
+[![Docker - Image Version](https://img.shields.io/docker/v/toncenter/ton-http-api-cpp?label=docker&sort=date)](https://hub.docker.com/repository/docker/toncenter/ton-http-api-cpp)
+[![Docker - Image Size](https://img.shields.io/docker/image-size/toncenter/ton-http-api-cpp?label=docker&sort=date)](https://hub.docker.com/repository/docker/toncenter/ton-http-api-cpp)
 ![Github last commit](https://img.shields.io/github/last-commit/toncenter/ton-http-api-cpp)
 
 The HTTP API C++ for [The Open Network](https://ton.org) is a real-time API to connect to TON blockchain lite servers via ADNL protocol and enable access to lite servers through HTTP requests.
