@@ -1,6 +1,6 @@
 name: Tonlib Multi Client
 
-on: [push,workflow_dispatch,workflow_call]
+on: []
 
 jobs:
   build:

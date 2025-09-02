@@ -1,0 +1,13 @@
+diff --git a/universal/include/userver/formats/json/serialize.hpp b/universal/include/userver/formats/json/serialize.hpp
+index 67108c72a..83f3cfcb1 100644
+--- a/universal/include/userver/formats/json/serialize.hpp
++++ b/universal/include/userver/formats/json/serialize.hpp
+@@ -22,7 +22,7 @@ class LogHelper;
+ 
+ namespace formats::json {
+ 
+-constexpr inline std::size_t kDepthParseLimit = 128;
++constexpr inline std::size_t kDepthParseLimit = 2048;
+ 
+ /// Parse JSON from string
+ formats::json::Value FromString(std::string_view doc);

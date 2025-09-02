@@ -1,0 +1,21 @@
+diff --git a/tonlib/tonlib/TonlibClient.cpp b/tonlib/tonlib/TonlibClient.cpp
+index 4ddcbbfa..5dd1c9cc 100644
+--- a/tonlib/tonlib/TonlibClient.cpp
++++ b/tonlib/tonlib/TonlibClient.cpp
+@@ -3302,7 +3302,7 @@ td::Status TonlibClient::do_request(const tonlib_api::raw_sendMessage& request,
+   TRY_RESULT_PREFIX(body, vm::std_boc_deserialize(request.body_), TonlibError::InvalidBagOfCells("body"));
+   std::ostringstream os;
+   block::gen::t_Message_Any.print_ref(os, body);
+-  LOG(ERROR) << os.str();
++  LOG(DEBUG) << os.str();
+   make_request(int_api::SendMessage{std::move(body)}, to_any_promise(std::move(promise)));
+   return td::Status::OK();
+ }
+@@ -4837,6 +4837,7 @@ td::Status TonlibClient::do_request(const tonlib_api::smc_runGetMethod& request,
+   args.set_extra_currencies(it->second->get_extra_currencies());
+   args.set_now(it->second->get_sync_time());
+   args.set_address(it->second->get_address());
++  args.set_limits(vm::GasLimits(4000000, 4000000));
+ 
+   client_.with_last_config([self = this, smc = std::move(smc), args = std::move(args), promise = std::move(promise)
+   ](td::Result<LastConfigState> r_state) mutable {
