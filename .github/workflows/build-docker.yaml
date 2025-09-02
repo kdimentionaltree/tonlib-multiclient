@@ -45,7 +45,7 @@ jobs:
       # TODO: fix this
       - name: Apply patch to userver-framework/userver
         run: |
-          cd external/ton
+          cd external/userver
           git apply ../../patches/userver_001.patch
 
       - name: Login to DockerHub
