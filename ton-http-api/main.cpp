@@ -6,12 +6,15 @@
 #include "userver/clients/http/component.hpp"
 #include "userver/clients/dns/component.hpp"
 
+#include "td/utils/port/signals.h"
+
 #include "tonlib/Logging.h"
 #include "tonlib_component.h"
 #include "cache.hpp"
 
 int main(int argc, char* argv[]) {
   tonlib::Logging::set_verbosity_level(1);
+  td::set_default_failure_signal_handler().ensure();
 
   auto component_list = userver::components::MinimalServerComponentList();
   component_list.Append<userver::server::handlers::ServerMonitor>();
