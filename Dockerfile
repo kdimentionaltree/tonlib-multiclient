@@ -27,6 +27,9 @@ COPY CMakeLists.txt /app/CMakeLists.txt
 WORKDIR /app/build
 RUN cmake -DCMAKE_BUILD_TYPE=Release -DPORTABLE=1 .. && make -j$(nproc) && make install
 COPY config/static_config.yaml /app/static_config.yaml
+
+RUN apt update && apt install -y gdb && mkdir -p /root/.config/gdb
+RUN echo "set auto-load safe-path /" > /root/.config/gdb/gdbinit
 ENTRYPOINT [ "ton-http-api-cpp" ]
 
 # FROM ubuntu:24.04

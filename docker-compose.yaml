@@ -6,16 +6,16 @@ services:
       dockerfile: Dockerfile
     command: --config /app/static_config.yaml --config_vars /run/secrets/config-vars
     ports:
-      - ${SERVER_PORT:-8081}:8081
-      - ${MONITOR_PORT:-8082}:8082
+      - ${THACPP_PORT:-8081}:8081
+      - ${THACPP_MONITOR_PORT:-8082}:8082
     restart: unless-stopped
     secrets:
       - ton-global-config
       - config-vars
     ulimits:
-      memlock: 4194304
+      memlock: -1
 secrets:
   ton-global-config:
-    file: ${TON_BLOCKCHAIN_CONFIG_PATH:-private/private-config.json}
+    file: ${THACPP_GLOBAL_CONFIG_PATH:-private/mainnet.json}
   config-vars:
-    file: ${TON_SERVICE_CONFIG_PATH:-private/config-vars.yaml}
+    file: ${THACPP_CONFIG_VARS:-private/config_vars.yaml}

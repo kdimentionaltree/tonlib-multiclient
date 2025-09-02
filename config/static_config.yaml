@@ -6,7 +6,7 @@ components_manager:
     fs-task-processor:
       thread_name: blocking_thread
       worker_threads: $fs_worker_threads
-      worker_threads#fallback: 2
+      worker_threads#fallback: 1
     monitor-task-processor:
       thread_name: monitor_thread
       worker_threads: $monitor_worker_threads
@@ -69,7 +69,7 @@ components_manager:
       pool-statistics-disable: false
       thread-name-prefix: http-client
       threads: $http_worker_threads
-      threads#fallback: 8
+      threads#fallback: 2
       fs-task-processor: fs-task-processor
       destination-metrics-auto-max-size: 100
       user-agent: $http_worker_user_agent
