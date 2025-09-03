@@ -1,6 +1,6 @@
 [submodule "external/ton"]
 	path = external/ton
-	url = https://github.com/kdimentionaltree/ton
+	url = https://github.com/ton-blockchain/ton
 	branch = testnet
 [submodule "external/pybind11"]
 	path = external/pybind11

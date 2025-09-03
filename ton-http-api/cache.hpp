@@ -24,7 +24,7 @@ public:
   using Cache = userver::cache::ExpirableLruCache<Key, Value, Hash, Equal>;
 
   ExpirableLruCacheComponent(const userver::components::ComponentConfig& config, const userver::components::ComponentContext& context)
-  : ComponentBase(config, context), name_(userver::components::GetCurrentComponentName(config)),
+  : ComponentBase(config, context), name_(userver::components::GetCurrentComponentName(context)),
   static_config_(config), cache_(std::make_shared<Cache>(static_config_.ways, static_config_.GetWaySize())) {
     cache_->SetMaxLifetime(static_config_.config.lifetime);
     cache_->SetBackgroundUpdate(static_config_.config.background_update);
