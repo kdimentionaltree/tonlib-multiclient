@@ -4,8 +4,8 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include "tonlib_multiclient/multi_client.h"
-#include "tonlib_multiclient/request.h"
+#include "tonlib-multiclient/multi_client.h"
+#include "tonlib-multiclient/request.h"
 #include "td/utils/Status.h"
 #include "tonlib/Logging.h"
 

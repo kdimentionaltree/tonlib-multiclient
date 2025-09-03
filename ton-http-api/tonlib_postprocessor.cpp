@@ -416,58 +416,16 @@ TonlibWorkerResponse TonlibPostProcessor::process_getTransactions(
 
   ValueBuilder builder(FromString(td::json_encode<td::string>(td::ToJson(result))));
 
-  auto process_message_fn = [&](const tonlib_api::object_ptr<tonlib_api::raw_message>& msg, ValueBuilder& builder) {
-    builder["source"] = msg->source_->account_address_;
-    builder["destination"] = msg->destination_->account_address_;
-
-    auto success = tonlib_api::downcast_call(
-        *msg->msg_data_,
-        td::overloaded(
-            [&](tonlib_api::msg_dataRaw& data) {
-              auto r_body = vm::std_boc_deserialize(data.body_);
-              if (r_body.is_ok()) {
-                auto body = r_body.move_as_ok();
-                vm::CellSlice cs = vm::load_cell_slice(body);
-                auto body_bs = cs.fetch_bitstring(cs.size());
-                auto body_bin = body_bs->to_binary();
-                for (auto i = body_bin.length() % 8; i % 8 != 0; ++i) {
-                  body_bin += "0";
-                }
-                auto body_slice = td::Slice(body_bin);
-                unsigned char buff[128];
-                td::bitstring::parse_bitstring_binary_literal(
-                    td::BitPtr{buff}, sizeof(buff) * 8, body_slice.begin(), body_slice.end()
-                );
-                auto body_hex = td::bitstring::bits_to_hex(td::ConstBitPtr{buff}, body_bin.length());
-                auto r_body_hex = td::hex_decode(body_hex);
-                if (r_body_hex.is_ok()) {
-                  builder["message"] = td::base64_encode(r_body_hex.move_as_ok());
-                } else {
-                  builder["message_decode_error"] =
-                      r_body_hex.move_as_error_prefix("Failed to decode hex: ").to_string();
-                }
-              } else {
-                builder["message_decode_error"] = r_body.move_as_error_prefix("Failed to decode message: ").to_string();
-              }
-            },
-            [&](tonlib_api::msg_dataText& data) { builder["message"] = data.text_; },
-            [&](auto& x) { LOG(WARNING) << "failed to decode type " << x.get_id(); }
-        )
-    );
-    if (!success) {
-      LOG(WARNING) << "error in downcast_call";
-    }
-  };
   for (size_t i = 0; i < result->transactions_.size(); ++i) {
     auto& tx = result->transactions_[i];
     auto& in_msg = tx->in_msg_;
     if (in_msg) {
       auto local_builder = builder["transactions"][i]["in_msg"];
-      process_message_fn(in_msg, local_builder);
+      process_rawMessage(in_msg, local_builder);
     }
     for (size_t j = 0; j < tx->out_msgs_.size(); ++j) {
       auto local_builder = builder["transactions"][i]["out_msgs"][j];
-      process_message_fn(tx->out_msgs_[j], local_builder);
+      process_rawMessage(tx->out_msgs_[j], local_builder);
     }
   }
 
@@ -496,5 +454,49 @@ TonlibWorkerResponse TonlibPostProcessor::process_runGetMethod(
   builder["stack"] = utils::serialize_tvm_stack(result.result->stack_);
   auto ress = ToString(builder.ExtractValue());
   return TonlibWorkerResponse{true, nullptr, ress, std::nullopt, std::move(session)};
+}
+void TonlibPostProcessor::process_rawMessage(
+    const tonlib_api::object_ptr<tonlib_api::raw_message>& msg, userver::formats::json::ValueBuilder& builder
+) const {
+  builder["source"] = msg->source_->account_address_;
+  builder["destination"] = msg->destination_->account_address_;
+
+  auto success = tonlib_api::downcast_call(
+      *msg->msg_data_,
+      td::overloaded(
+          [&](tonlib_api::msg_dataRaw& data) {
+            auto r_body = vm::std_boc_deserialize(data.body_);
+            if (r_body.is_ok()) {
+              auto body = r_body.move_as_ok();
+              vm::CellSlice cs = vm::load_cell_slice(body);
+              auto body_bs = cs.fetch_bitstring(cs.size());
+              auto body_bin = body_bs->to_binary();
+              for (auto i = body_bin.length() % 8; i % 8 != 0; ++i) {
+                body_bin += "0";
+              }
+              auto body_slice = td::Slice(body_bin);
+              unsigned char buff[128];
+              td::bitstring::parse_bitstring_binary_literal(
+                  td::BitPtr{buff}, sizeof(buff) * 8, body_slice.begin(), body_slice.end()
+              );
+              auto body_hex = td::bitstring::bits_to_hex(td::ConstBitPtr{buff}, body_bin.length());
+              auto r_body_hex = td::hex_decode(body_hex);
+              if (r_body_hex.is_ok()) {
+                builder["message"] = td::base64_encode(r_body_hex.move_as_ok());
+              } else {
+                builder["message_decode_error"] =
+                    r_body_hex.move_as_error_prefix("Failed to decode hex: ").to_string();
+              }
+            } else {
+              builder["message_decode_error"] = r_body.move_as_error_prefix("Failed to decode message: ").to_string();
+            }
+          },
+          [&](tonlib_api::msg_dataText& data) { builder["message"] = data.text_; },
+          [&](auto& x) { LOG(ERROR) << "failed to decode type " << x.get_id(); }
+      )
+  );
+  if (!success) {
+    LOG(ERROR) << "error in downcast_call";
+  }
 }
 }  // namespace ton_http::core

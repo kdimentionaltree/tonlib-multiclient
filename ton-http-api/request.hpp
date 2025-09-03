@@ -21,7 +21,7 @@ struct TonlibApiRequest {
     }
     return it->second[0];
   }
-  [[nodiscard]] const std::vector<std::string>& GetArgVector(const std::string& name) const {
+  [[nodiscard]] std::vector<std::string> GetArgVector(const std::string& name) const {
     const auto it = args.find(name);
     if (it == args.end()) {
       return {};

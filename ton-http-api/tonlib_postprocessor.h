@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tonlib_worker.h"
+#include "userver/formats/json.hpp"
 
 namespace ton_http::core {
 class TonlibPostProcessor {
@@ -13,5 +14,7 @@ public:
   TonlibWorkerResponse process_getBlockTransactionsExt(td::Result<tonlib_api::blocks_getTransactionsExt::ReturnType>&& res, multiclient::SessionPtr&& session = nullptr) const;
   TonlibWorkerResponse process_getTransactions(td::Result<tonlib_api::raw_getTransactionsV2::ReturnType>&& res, bool v2_schema = true, bool unwrap_single_transaction = false, multiclient::SessionPtr&& session = nullptr) const;
   TonlibWorkerResponse process_runGetMethod(td::Result<RunGetMethodResult>&& res, multiclient::SessionPtr&& session = nullptr) const;
+private:
+  void process_rawMessage(const tonlib_api::object_ptr<tonlib_api::raw_message>& msg, userver::formats::json::ValueBuilder& builder) const;
 };
 }
